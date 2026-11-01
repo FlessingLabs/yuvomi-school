@@ -24,7 +24,7 @@ import { createStore, dataOf } from './lib/store.js';
 import { loadHolidays } from './lib/holidays.js';
 import { computeDay, positionAt, STATUS, SCHOOL } from './lib/day.js';
 import { fromMinutes, nowInZone, addDays, mondayOf, weekday } from './lib/time.js';
-import { emptyPlan, emptyDay, copyPlan, validatePlan, validateException, isEmptyException, overlappingPlans, WEEKDAYS } from './lib/plan.js';
+import { emptyPlan, emptyDay, copyPlan, validatePlan, validateException, isEmptyException, overlappingPlans, WEEKDAYS, emptyRaster, nextPeriod, validateRaster } from './lib/plan.js';
 
 const ID = 'flessinglabs-school';
 const tr = (key, params) => t(`extensions.${ID}.${key}`, params);
@@ -68,6 +68,9 @@ export async function render(container, { signal } = {}) {
     draft: null,         // Plan in Bearbeitung: { personId, base: record|null, plan }
     showWeekend: false,
     exEdit: null,        // { personId, date }
+    rasters: [],         // Stundenraster (haushaltsweit)
+    rasterDraft: null,   // { base: record|null, raster }
+    sharedWrite: false,  // darf Stundenraster aendern (Modulrecht schreiben)
   };
 
   container.replaceChildren();
@@ -111,7 +114,13 @@ export async function render(container, { signal } = {}) {
       // Personen zuerst: ohne sie (Yuvomi ohne Migration 275) wird nichts
       // gelesen oder geschrieben - es gaebe keine Trennung zwischen den Kindern.
       state.people = await store.people({ signal });
-      await Promise.all(state.people.map((p) => loadPerson(p.user_id)));
+      const [me, rasters] = await Promise.all([
+        api.get('/auth/me', { signal }),
+        store.loadShared({ signal }),
+        ...state.people.map((p) => loadPerson(p.user_id)),
+      ]);
+      state.rasters = rasters;
+      state.sharedWrite = Boolean(me?.permissions?.admin) || me?.permissions?.modules?.[`ext:${ID}`] === 'write';
       await ensureHolidays(state.date);
       if (signal?.aborted) return;
       if (!state.focus || !state.people.some((p) => p.user_id === state.focus)) state.focus = defaultFocus();
@@ -157,6 +166,7 @@ export async function render(container, { signal } = {}) {
       exceptions: exceptionsOf(personId),
       date,
       holiday: state.holidays ? state.holidays.holidayFor(date) : 'unknown',
+      rasters: state.rasters,
     });
   }
 
@@ -323,6 +333,12 @@ export async function render(container, { signal } = {}) {
       `<option value="${v}"${v === value ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select>`;
     const timeIn = (name, value, when) => `<input type="time" class="form-input" name="${name}" value="${esc(value ?? '')}"${when ? ` data-when="${when}"` : ''}>`;
     const lessonsMode = ex.lessons?.cancelled ? 'cancel' : ex.lessons?.end ? 'end' : 'plan';
+    const raster = r.plan?.periods_id ? state.rasters.find((x) => x.id === r.plan.periods_id) : null;
+    // Mit Stundenraster: "endet nach Stunde N" statt einer Uhrzeit.
+    const lessonsEnd = raster
+      ? `<select class="form-input" name="lessons_end" data-when="lessons=end">${raster.periods.map((pp) =>
+        `<option value="${esc(pp.end)}"${ex.lessons?.end === pp.end ? ' selected' : ''}>${esc(tr('period.after', { n: pp.n, time: pp.end }))}</option>`).join('')}</select>`
+      : timeIn('lessons_end', ex.lessons?.end, 'lessons=end');
     const careMode = ex.care?.cancelled ? 'cancel' : ex.care?.start ? 'times' : 'plan';
     const endMode = ex.end?.mode ?? 'plan';
     return `
@@ -331,7 +347,7 @@ export async function render(container, { signal } = {}) {
           ${sel('day', ex.day ?? 'normal', ['normal', 'no_school', 'absent'].map((v) => [v, tr(`ex.day.${v}`)]))}</label>
         <div class="sp-field" data-when="day!=absent"><span>${esc(tr('ex.lessonsLabel'))}</span>
           <div class="sp-row">${sel('lessons', lessonsMode, ['plan', 'cancel', 'end'].map((v) => [v, tr(`ex.lessons.${v}`)]))}
-          ${timeIn('lessons_end', ex.lessons?.end, 'lessons=end')}</div></div>
+          ${lessonsEnd}</div></div>
         <div class="sp-field" data-when="day!=absent"><span>${esc(tr('ex.careLabel'))}</span>
           <div class="sp-row">${sel('care', careMode, ['plan', 'cancel', 'times'].map((v) => [v, tr(`ex.care.${v}`)]))}
           ${timeIn('care_start', ex.care?.start, 'care=times')}${timeIn('care_end', ex.care?.end, 'care=times')}</div></div>
@@ -535,7 +551,97 @@ export async function render(container, { signal } = {}) {
       ${write ? '' : `<p class="sp-hint">${esc(tr('plans.readonly'))}</p>`}
       <ul class="sp-plans">${items || `<li class="sp-message__text">${esc(tr('plans.none'))}</li>`}</ul>
       ${draft && !draft.base ? `<div class="sp-plan sp-plan--editing">${planEditorHtml(draft)}</div>` : ''}
-      ${write && !draft ? `<button type="button" class="btn btn--primary sp-new" data-action="new-plan">${esc(tr('action.newPlan'))}</button>` : ''}`;
+      ${write && !draft ? `<button type="button" class="btn btn--primary sp-new" data-action="new-plan">${esc(tr('action.newPlan'))}</button>` : ''}
+      ${rastersHtml()}`;
+  }
+
+  // ---- Stundenraster (haushaltsweit) ---------------------------------------
+
+  function rastersHtml() {
+    const d = state.rasterDraft;
+    const items = state.rasters.map((r) => (d?.base?.id === r.id
+      ? `<li class="sp-plan sp-plan--editing">${rasterEditorHtml(d)}</li>`
+      : `<li class="sp-plan" data-raster="${esc(r.id)}"><div class="sp-plan__head">
+          <div><p class="sp-plan__label">${esc(r.name)}</p>
+            <p class="sp-plan__meta">${esc(tr('raster.meta', { count: r.periods.length, from: r.periods[0]?.start ?? '', to: r.periods.at(-1)?.end ?? '' }))}</p></div>
+          ${state.sharedWrite && !d ? `<div class="sp-plan__tools"><button type="button" class="btn btn--secondary" data-action="edit-raster">${esc(tr('action.edit'))}</button></div>` : ''}
+        </div></li>`)).join('');
+    return `
+      <section class="sp-rasters">
+        <h2 class="sp-section">${esc(tr('raster.title'))}</h2>
+        <p class="sp-hint">${esc(tr('raster.intro'))}</p>
+        <ul class="sp-plans">${items || `<li class="sp-message__text">${esc(tr('raster.none'))}</li>`}</ul>
+        ${d && !d.base ? `<div class="sp-plan sp-plan--editing">${rasterEditorHtml(d)}</div>` : ''}
+        ${state.sharedWrite && !d ? `<button type="button" class="btn btn--secondary sp-new" data-action="new-raster">${esc(tr('raster.new'))}</button>` : ''}
+      </section>`;
+  }
+
+  function rasterEditorHtml(d) {
+    const r = d.raster;
+    return `
+      <form class="sp-planedit" data-action="save-raster" novalidate>
+        <label class="sp-field"><span>${esc(tr('raster.name'))}</span>
+          <input class="form-input" maxlength="80" placeholder="${esc(tr('raster.namePlaceholder'))}" data-rbind="name" value="${esc(r.name)}"></label>
+        ${r.periods.map((p, i) => `
+          <div class="sp-entry sp-entry--period">
+            <span class="sp-rowlabel">${esc(tr('period.n', { n: p.n }))}</span>
+            <input type="time" class="form-input" aria-label="${esc(tr('field.start'))}" data-rbind="periods.${i}.start" value="${esc(p.start)}">
+            <input type="time" class="form-input" aria-label="${esc(tr('field.end'))}" data-rbind="periods.${i}.end" value="${esc(p.end)}">
+            <button type="button" class="btn btn--secondary sp-icon" data-action="remove-period" data-index="${i}" aria-label="${esc(tr('action.remove'))}"><i data-lucide="x" aria-hidden="true"></i></button>
+          </div>`).join('')}
+        <div class="sp-actions sp-actions--add"><button type="button" class="btn btn--secondary" data-action="add-period">${esc(tr('raster.addPeriod'))}</button></div>
+        <p class="sp-error" role="alert" hidden></p>
+        <div class="sp-actions">
+          <button type="submit" class="btn btn--primary">${esc(tr('action.save'))}</button>
+          <button type="button" class="btn btn--secondary" data-action="cancel-raster">${esc(tr('action.cancel'))}</button>
+          ${d.base ? `<button type="button" class="btn btn--danger-outline sp-actions__end" data-action="delete-raster">${esc(tr('action.delete'))}</button>` : ''}
+        </div>
+      </form>`;
+  }
+
+  async function saveRaster(form) {
+    const d = state.rasterDraft;
+    const errorEl = form.querySelector('.sp-error');
+    const raster = { ...d.raster, name: String(d.raster.name ?? '').trim(), periods: d.raster.periods.map((p, i) => ({ ...p, n: i + 1 })) };
+    const problems = validateRaster(raster);
+    if (problems.length) { errorEl.textContent = problems.map((x) => tr(`problem.${x.code}`, { n: x.n })).join(' '); errorEl.hidden = false; return; }
+    try {
+      if (d.base) await store.update(d.base, raster);
+      else await store.create(null, raster);
+      state.rasters = await store.loadShared({ signal });
+      if (signal?.aborted) return;
+      state.rasterDraft = null;
+      renderAll();
+      showToast(tr('toast.saved'), 'success');
+    } catch (err) {
+      if (signal?.aborted) return;
+      if (err?.reason === 'conflict' || err?.reason === 'not_found') {
+        state.rasters = await store.loadShared({ signal }).catch(() => state.rasters);
+        const fresh = d.base ? state.rasters.find((x) => x.id === d.base.id) : null;
+        state.rasterDraft = fresh ? { base: fresh, raster: dataOf(structuredClone(fresh)) } : null;
+        renderAll();
+        showToast(tr(fresh ? 'error.conflict' : 'error.gone'), 'warning', 6000);
+        return;
+      }
+      errorEl.textContent = errorText(err);
+      errorEl.hidden = false;
+    }
+  }
+
+  async function deleteRaster() {
+    const d = state.rasterDraft;
+    if (!d?.base) return;
+    try {
+      await store.remove(d.base);
+      showToast(tr('toast.deleted'), 'default');
+    } catch (err) {
+      if (err?.reason === 'conflict') showToast(tr('error.conflict'), 'warning', 6000);
+      else if (err?.reason !== 'not_found') showToast(errorText(err), 'danger');
+    }
+    state.rasters = await store.loadShared({ signal }).catch(() => state.rasters);
+    if (signal?.aborted) return;
+    state.rasterDraft = null;
+    renderAll();
   }
 
   /** Alle Orte, die im Plan vorkommen - fuer jeden braucht es eine Heimwegdauer. */
@@ -554,8 +660,13 @@ export async function render(container, { signal } = {}) {
     const val = (path) => esc(getPath(p, path) ?? '');
     const weeksSel = (path) => (ab ? `<select class="form-input sp-weeks" ${bind(path, 'weeks')} aria-label="${esc(tr('field.weeks'))}">${['all', 'A', 'B'].map((w) =>
       `<option value="${w}"${(getPath(p, path) ?? 'all') === w ? ' selected' : ''}>${esc(tr(`weeks.${w}`))}</option>`).join('')}</select>` : '');
+    const raster = p.periods_id ? state.rasters.find((x) => x.id === p.periods_id) : null;
+    // "von" zeigt den Beginn der Stunde, "bis" ihr Ende - so passt es in ein schmales Feld.
+    const periodSel = (path, value, which) => `<select class="form-input sp-period" aria-label="${esc(tr(which === 'from' ? 'field.start' : 'field.end'))}" ${bind(path, 'int')}>${(raster?.periods ?? []).map((pp) =>
+      `<option value="${pp.n}"${value === pp.n ? ' selected' : ''}>${esc(tr(`period.${which}`, { n: pp.n, start: pp.start, end: pp.end }))}</option>`).join('')}</select>`;
     const row = (type, d, i, e) => {
       const base = `days.${d}.${type}.${i}`;
+      const byPeriod = type === 'lessons' && (e.period_from !== undefined);
       const titleField = type === 'lessons'
         ? `<input class="form-input sp-grow" placeholder="${esc(tr('field.subject'))}" aria-label="${esc(tr('field.subject'))}" maxlength="80" ${bind(`${base}.title`, 'text')} value="${val(`${base}.title`)}">`
         : type === 'projects'
@@ -566,8 +677,10 @@ export async function render(container, { signal } = {}) {
         : `<input class="form-input sp-small" placeholder="${esc(tr('field.placeSchool'))}" aria-label="${esc(tr('field.place'))}" maxlength="80" ${bind(`${base}.place`, 'text', ' data-rerender="1"')} value="${val(`${base}.place`)}">`;
       return `<div class="sp-entry">
         ${titleField}
-        <input type="time" class="form-input" aria-label="${esc(tr('field.start'))}" ${bind(`${base}.start`, 'time')} value="${val(`${base}.start`)}">
-        <input type="time" class="form-input" aria-label="${esc(tr('field.end'))}" ${bind(`${base}.end`, 'time')} value="${val(`${base}.end`)}">
+        ${byPeriod
+          ? `${periodSel(`${base}.period_from`, e.period_from, 'from')}${periodSel(`${base}.period_to`, e.period_to ?? e.period_from, 'to')}`
+          : `<input type="time" class="form-input" aria-label="${esc(tr('field.start'))}" ${bind(`${base}.start`, 'time')} value="${val(`${base}.start`)}">
+        <input type="time" class="form-input" aria-label="${esc(tr('field.end'))}" ${bind(`${base}.end`, 'time')} value="${val(`${base}.end`)}">`}
         ${placeField}${weeksSel(`${base}.weeks`)}
         <button type="button" class="btn btn--secondary sp-icon" data-action="remove-row" data-path="days.${d}.${type}" data-index="${i}" aria-label="${esc(tr('action.remove'))}"><i data-lucide="x" aria-hidden="true"></i></button>
       </div>`;
@@ -608,6 +721,11 @@ export async function render(container, { signal } = {}) {
           <label class="sp-field"><span>${esc(tr('field.from'))}</span><input type="date" class="form-input" ${bind('valid_from', 'text')} value="${val('valid_from')}"></label>
           <label class="sp-field"><span>${esc(tr('field.to'))}</span><input type="date" class="form-input" ${bind('valid_to', 'text')} value="${val('valid_to')}"></label>
         </div>
+        <label class="sp-field"><span>${esc(tr('raster.select'))}</span>
+          <select class="form-input" ${bind('periods_id', 'text', ' data-rerender="1"')}>
+            <option value="">${esc(tr('raster.noneSelected'))}</option>
+            ${state.rasters.map((r) => `<option value="${esc(r.id)}"${p.periods_id === r.id ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}
+          </select></label>
         <fieldset class="sp-group"><legend>${esc(tr('field.travel'))}</legend>
           ${placesOf(p).map((place) => `<label class="sp-mini sp-travel">${esc(tr('field.travelFrom', { place: placeName(place) }))}
             <input type="number" min="0" max="600" inputmode="numeric" class="form-input" data-travel="${esc(place)}" value="${esc(p.travel?.[place] ?? '')}"> ${esc(tr('field.minutes'))}</label>`).join('')}
@@ -657,6 +775,14 @@ export async function render(container, { signal } = {}) {
     const used = new Set(placesOf(p));
     for (const key of Object.keys(p.travel ?? {})) if (!used.has(key)) delete p.travel[key];
     if (!p.ab_anchor) p.ab_anchor = null;
+    if (!p.periods_id) p.periods_id = null;
+    for (const d of WEEKDAYS) {
+      p.days[d].lessons = p.days[d].lessons.map((e) => {
+        if (e.period_from === undefined) return e;
+        const { start: _s, end: _e, ...rest } = e;
+        return { ...rest, period_to: Math.max(rest.period_to ?? rest.period_from, rest.period_from) };
+      });
+    }
     p.label = String(p.label ?? '').trim();
     return p;
   }
@@ -732,6 +858,7 @@ export async function render(container, { signal } = {}) {
 
   container.addEventListener('input', (e) => {
     const el = e.target;
+    if (el.dataset.rbind && state.rasterDraft) { setPath(state.rasterDraft.raster, el.dataset.rbind, el.value); return; }
     if (!state.draft) return;
     if (el.dataset.bind) {
       let v = el.value;
@@ -752,6 +879,9 @@ export async function render(container, { signal } = {}) {
       rerenderEditor();
       return;
     }
+    if (el.tagName === 'SELECT' && el.dataset.bind && state.draft) {
+      setPath(state.draft.plan, el.dataset.bind, el.dataset.kind === 'int' ? Number(el.value) : el.value);
+    }
     if (el.dataset.rerender && state.draft) { rerenderEditor(); return; }
     if (el.form?.classList.contains('sp-ex')) applyConditional(main);
   }, { signal });
@@ -761,6 +891,7 @@ export async function render(container, { signal } = {}) {
     e.preventDefault();
     if (form.dataset.action === 'save-exception') saveException(form);
     else if (form.dataset.action === 'save-plan') savePlan(form);
+    else if (form.dataset.action === 'save-raster') saveRaster(form);
   }, { signal });
 
   container.addEventListener('click', (e) => {
@@ -773,6 +904,7 @@ export async function render(container, { signal } = {}) {
         state.view = el.dataset.view;
         storeView(state.view);
         state.draft = null;
+        state.rasterDraft = null;
         state.exEdit = null;
         renderAll();
         break;
@@ -803,6 +935,17 @@ export async function render(container, { signal } = {}) {
         break;
       }
       case 'cancel-plan': state.draft = null; renderAll(); break;
+      case 'new-raster': state.rasterDraft = { base: null, raster: emptyRaster('') }; renderAll(); break;
+      case 'edit-raster': {
+        const base = state.rasters.find((x) => x.id === el.closest('[data-raster]').dataset.raster);
+        state.rasterDraft = { base, raster: dataOf(structuredClone(base)) };
+        renderAll();
+        break;
+      }
+      case 'cancel-raster': state.rasterDraft = null; renderAll(); break;
+      case 'delete-raster': deleteRaster(); break;
+      case 'add-period': state.rasterDraft.raster.periods.push(nextPeriod(state.rasterDraft.raster.periods)); rerenderEditor(); break;
+      case 'remove-period': state.rasterDraft.raster.periods.splice(Number(el.dataset.index), 1); rerenderEditor(); break;
       case 'delete-plan': deletePlan(); break;
       case 'show-weekend': state.showWeekend = true; rerenderEditor(); break;
       case 'add-row': {
@@ -810,7 +953,13 @@ export async function render(container, { signal } = {}) {
         const type = el.dataset.path.split('.').pop();
         const prev = list.at(-1);
         const start = prev?.end ?? (type === 'lessons' ? '08:00' : '');
-        list.push(type === 'lessons' ? { start, end: '', title: '' } : type === 'care' ? { start, end: '' } : { start, end: '', title: '' });
+        const raster = state.draft.plan.periods_id ? state.rasters.find((x) => x.id === state.draft.plan.periods_id) : null;
+        if (type === 'lessons' && raster?.periods?.length) {
+          const next = Math.min((prev?.period_to ?? 0) + 1, raster.periods.at(-1).n);
+          list.push({ period_from: next, period_to: raster.periods.at(-1).n, title: '' });
+        } else {
+          list.push(type === 'lessons' ? { start, end: '', title: '' } : type === 'care' ? { start, end: '' } : { start, end: '', title: '' });
+        }
         rerenderEditor();
         break;
       }

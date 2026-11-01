@@ -93,6 +93,29 @@ export function createStore(api) {
       return { plans, exceptions };
     },
 
+    /**
+     * Haushaltsweite Datensaetze (ohne Person) - hier die Stundenraster, die
+     * fuer alle Kinder einer Schule gelten. Lesen darf, wer das Modul lesen
+     * darf; aendern, wer es schreiben darf (Rollen & Berechtigungen).
+     */
+    async loadShared({ signal } = {}) {
+      const rasters = [];
+      let after = '';
+      for (let page = 0; page < 50; page++) {
+        const q = `?subject_id=none&limit=200${after ? `&after=${encodeURIComponent(after)}` : ''}`;
+        const res = await call(() => api.get(`${BASE}/records${q}`, { signal }));
+        for (const r of res?.data ?? []) {
+          if (r.subject_id !== null) continue;
+          const e = fromRecord(r);
+          if (e.kind === 'periods') rasters.push(e);
+        }
+        if (!res?.next) break;
+        after = res.next;
+      }
+      rasters.sort((a, b) => String(a.name).localeCompare(String(b.name)) || a.id.localeCompare(b.id));
+      return rasters;
+    },
+
     async create(subjectId, data) {
       const res = await call(() => api.post(`${BASE}/records`, { subject_id: subjectId, data }));
       // Ein Yuvomi ohne Personen-Datensaetze ignoriert subject_id still und

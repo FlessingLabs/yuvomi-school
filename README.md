@@ -20,6 +20,7 @@ All times are **planned times**: no location tracking, no confirmation of arriva
   - Time for the way home per place.
   - A holiday rule for childcare and activities.
   - Optional A/B weeks.
+  - **Lesson periods:** enter the times of the school periods once (for all children at one school); in a plan, choose only “from period – to period”. If the school changes its times, only the periods change. A day's change can say “ends after period …”.
   - "Same as Monday" copies a day. "Copy as new plan" serves as the template for the next school year.
 - **Change for one day:**
   - no school, or away;
@@ -55,7 +56,9 @@ Children are normal Yuvomi users; the module creates no children or accounts of 
 | Whoever an admin granted access for this child | see, or see and maintain |
 | Everyone else | nothing; the plans do not exist for them |
 
-An admin sets the grants under **Settings → Modules → Timetable**. Nothing is derived from role, name or age. The module permission "Timetable" under Roles & permissions stays the outer gate.
+An admin sets the grants under **Settings → Modules → Timetable**.
+
+**Lesson periods** belong to no child; they are household-wide: anyone with access to the timetable may read them, anyone with **write** access to the module may change them. To keep children from changing them, set children to **Read** for the timetable under Settings → Household → Roles & permissions; they still see their own plan. Nothing is derived from role, name or age. The module permission "Timetable" under Roles & permissions stays the outer gate.
 
 A child removed from the household is deactivated rather than deleted. Their plans stay and can never end up with somebody else. A removed person loses their grants.
 

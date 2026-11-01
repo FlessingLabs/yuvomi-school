@@ -140,7 +140,7 @@
 
 .sp-entry {
   display: grid;
-  grid-template-columns: minmax(7rem, 1fr) 7rem 7rem minmax(6rem, 0.7fr) auto auto;
+  grid-template-columns: minmax(7rem, 1fr) minmax(7rem, auto) minmax(7rem, auto) minmax(6rem, 0.7fr) auto auto;
   gap: var(--space-1, 4px);
   align-items: center;
 }
@@ -171,3 +171,7 @@
 /* Einstellungen (ohne Modul-CSS: dort gilt nur Yuvomis eigenes Aussehen) */
 .sp-grants { display: grid; gap: 8px; margin-bottom: 16px; }
 .sp-grants__row { display: grid; grid-template-columns: 1fr 10rem; gap: 8px; align-items: center; }
+
+.sp-section { margin: var(--space-6, 24px) 0 var(--space-1, 4px); font-size: var(--text-lg); }
+.sp-entry--period { grid-template-columns: 6rem 7rem 7rem auto; }
+@media (max-width: 640px) { .sp-entry--period { grid-template-columns: 1fr 1fr; } }

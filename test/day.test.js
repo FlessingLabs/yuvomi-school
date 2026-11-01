@@ -255,3 +255,29 @@ test('position during the day: current, next, after the planned home time', () =
   assert.equal(at('17:00').after, true);
   assert.equal(at('17:00').current, null, 'after the planned time nothing claims the child is at home');
 });
+
+test('lessons by period: times come from the raster, a missing raster keeps the day open', () => {
+  const raster = { id: 'r1', kind: 'periods', name: 'GS', periods: [
+    { n: 1, start: '08:00', end: '08:45' }, { n: 2, start: '08:50', end: '09:35' },
+    { n: 3, start: '09:55', end: '10:40' }, { n: 4, start: '10:45', end: '11:30' },
+    { n: 5, start: '11:45', end: '12:30' }, { n: 6, start: '12:35', end: '13:20' },
+  ] };
+  const p = plan({ 1: { lessons: [{ period_from: 1, period_to: 6, title: 'Unterricht' }], care: [{ start: '13:20', end: '15:00' }], end: { mode: 'home' } } }, { periods_id: 'r1' });
+  const r = computeDay({ plans: [p], date: MON, rasters: [raster] });
+  assert.equal(r.status, STATUS.OK);
+  assert.deepEqual([fromMinutes(r.segments[0].start), fromMinutes(r.segments[0].end)], ['08:00', '13:20']);
+  assert.equal(home(r), '15:20');
+
+  // Die Schule verschiebt die 6. Stunde: nur das Raster aendert sich.
+  const later = { ...raster, periods: raster.periods.map((x) => (x.n === 6 ? { ...x, end: '13:25' } : x)) };
+  assert.equal(computeDay({ plans: [p], date: MON, rasters: [later] }).status, STATUS.OPEN, 'now lessons overlap the care start');
+
+  const missing = computeDay({ plans: [p], date: MON, rasters: [] });
+  assert.equal(missing.status, STATUS.OPEN);
+  assert.deepEqual(codes(missing), ['period_missing']);
+  const noSuchPeriod = computeDay({ plans: [plan({ 1: { lessons: [{ period_from: 1, period_to: 9, title: 'x' }], end: { mode: 'home' } } }, { periods_id: 'r1' })], date: MON, rasters: [raster] });
+  assert.deepEqual(codes(noSuchPeriod), ['period_missing']);
+
+  const early = computeDay({ plans: [p], exceptions: [{ kind: 'exception', date: MON, lessons: { end: '11:30' } }], date: MON, rasters: [raster] });
+  assert.equal(fromMinutes(early.segments[0].end), '11:30', 'an early end cuts the period block');
+});

@@ -24,7 +24,7 @@ const lib = (f) => import(path.join(here, '../../module/lib', f));
 const { createStore, dataOf } = await lib('store.js');
 const { computeDay, STATUS, SCHOOL } = await lib('day.js');
 const { fromMinutes, mondayOf, addDays } = await lib('time.js');
-const { emptyPlan, copyPlan } = await lib('plan.js');
+const { emptyPlan, copyPlan, emptyRaster, nextPeriod } = await lib('plan.js');
 
 const args = process.argv.slice(2);
 const phase = args[0] ?? 'setup';
@@ -198,6 +198,21 @@ const fresh = (await mama.load(ids.e2emax)).plans[1];
 assert.equal(fresh.label, 'E2E 2026/27 (geaendert)', 'the stale write did not overwrite');
 await mama.update(fresh, { ...dataOf(fresh), label: 'E2E 2026/27' });
 console.log('conflict on two devices: OK');
+
+// Stundenraster: einmal anlegen (haushaltsweit), im Plan nur Stunden waehlen.
+for (const r of await store.loadShared()) if (r.name === 'E2E Raster') await store.remove(r);
+const raster = emptyRaster('E2E Raster');
+for (let i = 0; i < 5; i++) raster.periods.push(nextPeriod(raster.periods));
+const savedRaster = await mama.create(null, raster);
+assert.ok((await lea.loadShared()).some((r) => r.id === savedRaster.id), 'children read the lesson periods');
+const byPeriods = (await mama.load(ids.e2emax)).plans.find((p) => p.label === 'E2E 2026/27');
+const withRaster = { ...dataOf(byPeriods), periods_id: savedRaster.id };
+withRaster.days['1'] = { lessons: [{ period_from: 1, period_to: 6, title: 'Unterricht' }], care: [], projects: [], end: { mode: 'home' } };
+await mama.update(byPeriods, withRaster);
+const maxData = await mama.load(ids.e2emax);
+const monday = computeDay({ plans: maxData.plans, exceptions: maxData.exceptions, date: '2026-11-02', holiday: 'unknown', rasters: await mama.loadShared() });
+assert.equal(fromMinutes(monday.home.minutes), '13:15', 'periods 1-6 end 12:55, plus 20 minutes');
+console.log('lesson periods: OK');
 
 // Andere Bereiche
 for (const p of ['/tasks', '/notes', '/shopping', '/calendar/holidays?from=2026-11-01&to=2026-11-30', '/dashboard', '/modules']) {

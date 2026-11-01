@@ -52,6 +52,21 @@ export function exceptionsFor(exceptions, date) {
   return exceptions.filter((e) => e.date === date);
 }
 
+/**
+ * Unterricht nach Stundenraster: `{ period_from: 1, period_to: 6 }` statt
+ * Uhrzeiten. Die Zeiten kommen aus dem Raster, das der Plan nennt
+ * (`plan.periods_id`) - aendert die Schule ihre Zeiten, aendert man nur das
+ * Raster. Fehlt das Raster oder eine Stunde, bleibt die Zeit leer, und der Tag
+ * wird offen statt geraten.
+ */
+export function resolveLesson(entry, raster) {
+  if (entry.period_from === undefined && entry.period_to === undefined) return entry;
+  const from = raster?.periods?.find((p) => p.n === entry.period_from);
+  const to = raster?.periods?.find((p) => p.n === (entry.period_to ?? entry.period_from));
+  if (!from || !to) return { ...entry, start: null, end: null, periodMissing: true };
+  return { ...entry, start: from.start, end: to.end };
+}
+
 function seg(type, entry, extra = {}) {
   return {
     type,
@@ -60,6 +75,9 @@ function seg(type, entry, extra = {}) {
     title: entry.title ?? null,
     place: type === 'lesson' ? SCHOOL : (entry.place ?? SCHOOL),
     room: entry.room ?? null,
+    period_from: entry.period_from ?? null,
+    period_to: entry.period_to ?? entry.period_from ?? null,
+    periodMissing: Boolean(entry.periodMissing),
     ...extra,
   };
 }
@@ -73,7 +91,7 @@ function seg(type, entry, extra = {}) {
  *        Ferien/Feiertag an diesem Tag; 'unknown', wenn Yuvomi keine
  *        Ferieninformation liefern kann.
  */
-export function computeDay({ plans = [], exceptions = [], date, holiday = null }) {
+export function computeDay({ plans = [], exceptions = [], date, holiday = null, rasters = [] }) {
   const result = {
     date, status: STATUS.OK, plan: null, exception: null, holiday: holiday && holiday !== 'unknown' ? holiday : null,
     holidayUnknown: holiday === 'unknown', week: null, segments: [], last: null, home: null, reasons: [],
@@ -109,7 +127,9 @@ export function computeDay({ plans = [], exceptions = [], date, holiday = null }
   result.week = letter;
 
   const day = plan.days?.[String(weekday(date))] ?? {};
-  let lessons = (day.lessons ?? []).filter((e) => inWeek(e, letter));
+  const raster = plan.periods_id ? rasters.find((r) => r.id === plan.periods_id) ?? null : null;
+  let lessons = (day.lessons ?? []).filter((e) => inWeek(e, letter)).map((e) => resolveLesson(e, raster));
+  if (lessons.some((e) => e.periodMissing)) open('period_missing');
   let care = (day.care ?? []).filter((e) => inWeek(e, letter));
   let projects = (day.projects ?? []).filter((e) => inWeek(e, letter));
 
@@ -170,6 +190,7 @@ export function computeDay({ plans = [], exceptions = [], date, holiday = null }
     ...projects.map((e) => seg('project', e)),
   ];
   for (const s of segments) {
+    if (s.periodMissing) continue; // schon als period_missing gemeldet
     if (s.start === null || s.end === null) open('time_missing', { type: s.type, title: s.title });
     else if (s.end <= s.start) open('end_before_start', { type: s.type, title: s.title });
   }

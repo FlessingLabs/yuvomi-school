@@ -20,6 +20,7 @@ Alle Zeiten sind **Planzeiten**. Es gibt kein Standorttracking und keine Ankunft
   - Heimwegdauer je Ort.
   - Ferienregel für Betreuung und Projekte.
   - Optional A/B-Wochen.
+  - **Stundenraster:** Die Zeiten der Schulstunden einmal anlegen (für alle Kinder einer Schule); im Plan dann nur „von Stunde – bis Stunde“ wählen. Ändert die Schule ihre Zeiten, ändert man nur das Raster. In der Tagesabweichung geht „endet nach Stunde …“.
   - „Wie Montag“ übernimmt einen Tag. „Als neuen Plan kopieren“ dient als Vorlage für das nächste Schuljahr.
 - **Abweichung für einen Tag:**
   - schulfrei oder abwesend;
@@ -55,7 +56,9 @@ Die Kinder sind normale Yuvomi-Benutzer; das Modul legt keine eigenen Kinder ode
 | Wem ein Admin es für dieses Kind freigegeben hat | sehen oder pflegen |
 | Alle anderen | nichts, die Pläne existieren für sie nicht |
 
-Die Freigaben setzt ein Admin unter **Einstellungen → Module → Stundenplan**. Nichts wird aus Rolle, Name oder Alter abgeleitet. Das Modulrecht „Stundenplan“ unter Rollen & Berechtigungen bleibt die äußere Schranke.
+Die Freigaben setzt ein Admin unter **Einstellungen → Module → Stundenplan**.
+
+**Stundenraster** gehören keinem Kind, sie gelten für den Haushalt: Lesen darf sie jeder mit Zugriff auf den Stundenplan, ändern jeder mit **Schreibrecht** auf das Modul. Damit Kinder sie nicht ändern, stellst du Kinder unter Einstellungen → Haushalt → Rollen & Berechtigungen beim Stundenplan auf **Lesen**; ihren eigenen Plan sehen sie weiterhin. Nichts wird aus Rolle, Name oder Alter abgeleitet. Das Modulrecht „Stundenplan“ unter Rollen & Berechtigungen bleibt die äußere Schranke.
 
 Wird ein Kind aus dem Haushalt entfernt, wird es deaktiviert statt gelöscht. Seine Pläne bleiben erhalten und können nie bei jemand anderem landen. Wer entfernt wird, verliert seine Freigaben.
 

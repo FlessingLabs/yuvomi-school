@@ -56,10 +56,18 @@ export function validatePlan(plan, others = []) {
   for (const d of WEEKDAYS) {
     const day = plan.days?.[d] ?? {};
     const check = (type, e) => {
-      const s = toMinutes(e.start);
-      const en = toMinutes(e.end);
-      if (s === null || en === null) add('entry_time', { day: d, type });
-      else if (en <= s) add('entry_order', { day: d, type });
+      if (type === 'lesson' && (e.period_from !== undefined || e.period_to !== undefined)) {
+        const from = e.period_from;
+        const to = e.period_to ?? e.period_from;
+        if (!plan.periods_id) add('periods_without_raster', { day: d });
+        if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1) add('entry_time', { day: d, type });
+        else if (to < from) add('entry_order', { day: d, type });
+      } else {
+        const s = toMinutes(e.start);
+        const en = toMinutes(e.end);
+        if (s === null || en === null) add('entry_time', { day: d, type });
+        else if (en <= s) add('entry_order', { day: d, type });
+      }
       if ((type === 'lesson' || type === 'project') && !String(e.title ?? '').trim()) add('entry_title', { day: d, type });
       for (const f of ['title', 'room', 'place']) if (String(e[f] ?? '').length > MAX_TEXT) add('entry_long', { day: d, type });
       if (!['all', 'A', 'B', undefined].includes(e.weeks)) add('entry_weeks', { day: d, type });
@@ -99,4 +107,44 @@ export function validateException(ex) {
 export function isEmptyException(ex) {
   return (!ex.day || ex.day === 'normal') && !ex.lessons && !ex.care
     && !Object.keys(ex.projects ?? {}).length && !ex.end && !String(ex.note ?? '').trim();
+}
+
+/** Ein leeres Stundenraster (haushaltsweit, fuer alle Kinder einer Schule). */
+export function emptyRaster(name = '') {
+  return { kind: 'periods', v: 1, name, periods: [{ n: 1, start: '08:00', end: '08:45' }] };
+}
+
+/**
+ * Die naechste Stunde nach der letzten: gleiche Dauer, Pause wie zuletzt
+ * (sonst 5 Minuten). Nur ein Vorschlag fuer das Formular.
+ */
+export function nextPeriod(periods) {
+  const last = periods.at(-1);
+  if (!last) return { n: 1, start: '08:00', end: '08:45' };
+  const prev = periods.at(-2);
+  const len = (toMinutes(last.end) ?? 0) - (toMinutes(last.start) ?? 0) || 45;
+  const gap = prev ? Math.max(0, (toMinutes(last.start) ?? 0) - (toMinutes(prev.end) ?? 0)) : 5;
+  const start = (toMinutes(last.end) ?? 0) + gap;
+  const fmt = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  return { n: last.n + 1, start: fmt(start), end: fmt(start + len) };
+}
+
+/** Probleme eines Stundenrasters; leer heisst speicherbar. */
+export function validateRaster(raster) {
+  const problems = [];
+  if (!String(raster.name ?? '').trim()) problems.push({ code: 'raster_name_missing' });
+  const periods = raster.periods ?? [];
+  if (!periods.length) problems.push({ code: 'raster_empty' });
+  let prevEnd = -1;
+  const seen = new Set();
+  for (const p of periods) {
+    const s = toMinutes(p.start);
+    const e = toMinutes(p.end);
+    if (!Number.isInteger(p.n) || p.n < 1 || seen.has(p.n)) problems.push({ code: 'raster_number', n: p.n });
+    seen.add(p.n);
+    if (s === null || e === null || e <= s) problems.push({ code: 'raster_time', n: p.n });
+    else if (s < prevEnd) problems.push({ code: 'raster_overlap', n: p.n });
+    if (e !== null) prevEnd = e;
+  }
+  return problems;
 }

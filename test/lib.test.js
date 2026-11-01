@@ -135,3 +135,25 @@ test('exception validation', () => {
   assert.equal(isEmptyException({ date: '2026-11-04', day: 'normal', projects: {} }), true);
   assert.equal(isEmptyException({ date: '2026-11-04', note: 'Zahnarzt' }), false);
 });
+
+import { emptyRaster, nextPeriod, validateRaster } from '../module/lib/plan.js';
+
+test('raster: next period keeps length and break; validation', () => {
+  const r = emptyRaster('GS');
+  r.periods.push(nextPeriod(r.periods));
+  assert.deepEqual(r.periods[1], { n: 2, start: '08:50', end: '09:35' });
+  r.periods.push(nextPeriod(r.periods));
+  assert.deepEqual(r.periods[2], { n: 3, start: '09:40', end: '10:25' });
+  assert.deepEqual(validateRaster(r), []);
+  assert.deepEqual(validateRaster({ name: '', periods: [] }).map((x) => x.code), ['raster_name_missing', 'raster_empty']);
+  assert.deepEqual(validateRaster({ name: 'x', periods: [{ n: 1, start: '08:00', end: '09:00' }, { n: 2, start: '08:30', end: '09:30' }] }).map((x) => x.code), ['raster_overlap']);
+});
+
+test('plan validation: lessons by period need a raster and a sensible range', () => {
+  const p = emptyPlan({ label: 'x', validFrom: '2026-08-01', validTo: '2027-07-31' });
+  p.days['1'].lessons.push({ period_from: 3, period_to: 2, title: 'Mathe' });
+  assert.deepEqual(validatePlan(p).map((x) => x.code).sort(), ['entry_order', 'periods_without_raster']);
+  p.periods_id = 'r1';
+  p.days['1'].lessons[0] = { period_from: 1, period_to: 4, title: 'Mathe' };
+  assert.deepEqual(validatePlan(p), []);
+});
