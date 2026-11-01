@@ -73,6 +73,7 @@ export async function render(container, { signal } = {}) {
   container.replaceChildren();
   container.insertAdjacentHTML('beforeend',
     renderPageHeader({
+      wrap: true,
       title: renderPageTitle(esc(tr('title'))),
       actions: renderPageActions('<div class="sp-tabs" role="tablist" data-sp="tabs"></div>'),
     })
@@ -288,7 +289,7 @@ export async function render(container, { signal } = {}) {
       else if (pos.current) lines.push(tr('now.current', { what: what(pos.current), until: time(pos.current.end) }));
       if (pos.next && !pos.before && pos.next.type !== 'travel') lines.push(tr('next', { what: what(pos.next), at: time(pos.next.start) }));
     } else if (r.last) {
-      lines.push(tr('dayEnd', { what: what(r.last), until: time(r.last.end) }));
+      lines.push(tr('dayLast', { what: what(r.last), until: time(r.last.end) }));
     }
     lines.push(...statusLines(r));
     const homeText = homeLine(r);
@@ -326,12 +327,12 @@ export async function render(container, { signal } = {}) {
     const endMode = ex.end?.mode ?? 'plan';
     return `
       <form class="sp-ex" data-action="save-exception" data-person="${personId}" novalidate>
-        <label class="sp-field"><span>${esc(tr('ex.day'))}</span>
+        <label class="sp-field"><span>${esc(tr('ex.dayLabel'))}</span>
           ${sel('day', ex.day ?? 'normal', ['normal', 'no_school', 'absent'].map((v) => [v, tr(`ex.day.${v}`)]))}</label>
-        <div class="sp-field" data-when="day!=absent"><span>${esc(tr('ex.lessons'))}</span>
+        <div class="sp-field" data-when="day!=absent"><span>${esc(tr('ex.lessonsLabel'))}</span>
           <div class="sp-row">${sel('lessons', lessonsMode, ['plan', 'cancel', 'end'].map((v) => [v, tr(`ex.lessons.${v}`)]))}
           ${timeIn('lessons_end', ex.lessons?.end, 'lessons=end')}</div></div>
-        <div class="sp-field" data-when="day!=absent"><span>${esc(tr('ex.care'))}</span>
+        <div class="sp-field" data-when="day!=absent"><span>${esc(tr('ex.careLabel'))}</span>
           <div class="sp-row">${sel('care', careMode, ['plan', 'cancel', 'times'].map((v) => [v, tr(`ex.care.${v}`)]))}
           ${timeIn('care_start', ex.care?.start, 'care=times')}${timeIn('care_end', ex.care?.end, 'care=times')}</div></div>
         ${projectTitles.map((title, i) => {
@@ -342,7 +343,7 @@ export async function render(container, { signal } = {}) {
             <div class="sp-row">${sel(`p${i}`, mode, ['plan', 'cancel', 'times'].map((v) => [v, tr(`ex.project.${v}`)]))}
             ${timeIn(`p${i}_start`, c?.start, `p${i}=times`)}${timeIn(`p${i}_end`, c?.end, `p${i}=times`)}</div></div>`;
         }).join('')}
-        <div class="sp-field" data-when="day!=absent"><span>${esc(tr('ex.end'))}</span>
+        <div class="sp-field" data-when="day!=absent"><span>${esc(tr('ex.endLabel'))}</span>
           <div class="sp-row">${sel('end', endMode, ['plan', 'home', 'pickup'].map((v) => [v, tr(`ex.end.${v === 'plan' ? 'plan' : v}`)]))}</div>
           <div class="sp-row" data-when="end=pickup">
             <label class="sp-mini">${esc(tr('field.pickup'))}${timeIn('end_pickup', ex.end?.pickup)}</label>
