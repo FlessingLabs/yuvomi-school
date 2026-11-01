@@ -1,0 +1,31 @@
+{
+  "manifestVersion": 1,
+  "id": "flessinglabs-school",
+  "name": "Stundenplan",
+  "version": "1.0.0",
+  "description": "Stundenplan je Kind: Unterricht, Betreuung, Projekte und die geplante Heimkehr. Braucht Yuvomi mit Modulspeicher und Personen-Freigaben (FlessingLabs-Fork, Migration 275).",
+  "entry": "index.js",
+  "style": "style.css",
+  "settings": { "entry": "settings.js", "sections": ["household"], "labelKey": "settings.title" },
+  "icon": "school",
+  "accent": "#3B82F6",
+  "i18n": { "defaultLocale": "de" },
+  "menu": {
+    "show": true,
+    "label": "Stundenplan",
+    "labelKey": "menu",
+    "icon": "school",
+    "order": 30
+  },
+  "page": {
+    "composition": "reading",
+    "width": "content",
+    "navigation": "standard",
+    "responsive": "standard"
+  },
+  "capabilities": {
+    "permissions": {
+      "module": { "label": "Stundenplan", "labelKey": "module", "icon": "school" }
+    }
+  }
+}

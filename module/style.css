@@ -1,0 +1,173 @@
+/*
+ * FlessingLabs Stundenplan
+ * Nur Yuvomi-Tokens (tokens.css): folgt Hell/Dunkel und dem Haushalts-Akzent.
+ * Tippflaechen mindestens 44px fuer Telefon und Tablet.
+ */
+
+.sp { --sp-tap: 44px; }
+
+.sp-tabs { display: flex; gap: var(--space-1, 4px); flex-wrap: wrap; }
+.sp-tab { min-height: 40px; }
+
+.sp-datenav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+  margin-block: var(--space-2, 8px);
+}
+.sp-datenav__date { flex: 1; min-width: 10rem; }
+.sp-datenav__date .form-input,
+.sp-datenav .btn { min-height: var(--sp-tap); }
+.sp-icon {
+  min-width: var(--sp-tap);
+  min-height: var(--sp-tap);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sp-dayname {
+  margin: 0 0 var(--space-2, 8px);
+  font-size: var(--text-lg);
+  color: var(--color-text-primary);
+}
+
+.sp-hint, .sp-note {
+  margin: var(--space-2, 8px) 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+.sp-note { margin-top: var(--space-4, 16px); }
+
+/* ---- Karten (Heute) ---- */
+.sp-cards { display: grid; gap: var(--space-3, 12px); }
+@media (min-width: 720px) { .sp-cards { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); } }
+
+.sp-card {
+  padding: var(--space-4, 16px);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.sp-card--exception { border-color: var(--color-warning, var(--color-accent)); }
+.sp-card__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2, 8px); flex-wrap: wrap; }
+.sp-card__name { margin: 0; font-size: var(--text-xl); color: var(--color-text-primary); }
+.sp-card__badges { display: flex; gap: 4px; flex-wrap: wrap; }
+.sp-card__line { margin: var(--space-2, 8px) 0 0; color: var(--color-text-primary); }
+.sp-card__home {
+  margin: var(--space-3, 12px) 0 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.sp-card__home--open { color: var(--color-text-secondary); }
+.sp-card__note { margin: var(--space-2, 8px) 0 0; font-style: italic; color: var(--color-text-secondary); }
+.sp-card__details { margin-top: var(--space-3, 12px); color: var(--color-text-secondary); }
+.sp-card__details summary { min-height: var(--sp-tap); display: flex; align-items: center; cursor: pointer; }
+.sp-card__action { margin-top: var(--space-3, 12px); min-height: var(--sp-tap); width: 100%; }
+
+.sp-reasons { margin: var(--space-1, 4px) 0 0; padding-left: 1.2em; color: var(--color-text-secondary); font-size: var(--text-sm); }
+
+.sp-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
+}
+.sp-badge--exception { background: var(--color-warning, var(--color-accent)); color: var(--color-text-on-accent); font-weight: 600; }
+.sp-badge--muted { color: var(--color-text-secondary); }
+
+/* ---- Zeitleiste ---- */
+.sp-timeline { list-style: none; margin: var(--space-2, 8px) 0 0; padding: 0; }
+.sp-seg {
+  display: grid;
+  grid-template-columns: 7.5em 1fr;
+  gap: var(--space-2, 8px);
+  padding: 4px 0;
+  font-variant-numeric: tabular-nums;
+  border-left: 3px solid var(--color-border);
+  padding-left: var(--space-2, 8px);
+}
+.sp-seg--lesson { border-color: var(--active-module-accent, var(--color-accent)); }
+.sp-seg--care { border-color: var(--color-text-tertiary); }
+.sp-seg--project { border-color: var(--color-accent); }
+.sp-seg--gap { border-left-style: dashed; color: var(--color-text-tertiary); font-style: italic; }
+.sp-seg--travel { border-left-style: dotted; color: var(--color-text-secondary); }
+
+/* ---- Woche ---- */
+.sp-week { display: grid; gap: var(--space-3, 12px); }
+.sp-day { padding: var(--space-3, 12px); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); }
+.sp-day--today { border-color: var(--color-accent); }
+.sp-day--exception { border-style: dashed; }
+.sp-day__name { margin: 0; font-size: var(--text-base); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.sp-day__status, .sp-day__home { margin: var(--space-2, 8px) 0 0; }
+.sp-day__home { font-weight: 600; }
+.sp-day__home--open { font-weight: 400; color: var(--color-text-secondary); }
+
+.sp-chips { display: flex; gap: var(--space-2, 8px); flex-wrap: wrap; margin-bottom: var(--space-2, 8px); }
+.sp-chip { min-height: var(--sp-tap); }
+
+/* ---- Plaene ---- */
+.sp-plans { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2, 8px); }
+.sp-plan { border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); padding: var(--space-3, 12px); }
+.sp-plan__head { display: flex; justify-content: space-between; gap: var(--space-2, 8px); flex-wrap: wrap; align-items: center; }
+.sp-plan__label { margin: 0; font-weight: 600; }
+.sp-plan__meta { margin: 2px 0 0; font-size: var(--text-sm); color: var(--color-text-secondary); }
+.sp-plan__tools { display: flex; gap: var(--space-2, 8px); flex-wrap: wrap; }
+.sp-plan__tools .btn, .sp-new { min-height: var(--sp-tap); }
+.sp-new { margin-top: var(--space-3, 12px); width: 100%; }
+
+.sp-planedit, .sp-ex { display: grid; gap: var(--space-3, 12px); margin-top: var(--space-3, 12px); }
+.sp-field { display: grid; gap: 4px; font-size: var(--text-sm); color: var(--color-text-secondary); }
+.sp-field .form-input, .sp-mini .form-input, .sp-entry .form-input, .sp-row .form-input { min-height: var(--sp-tap); font-size: max(16px, var(--text-base)); }
+.sp-row { display: flex; gap: var(--space-2, 8px); flex-wrap: wrap; align-items: end; }
+.sp-row > .sp-field { flex: 1; min-width: 9rem; }
+.sp-mini { display: grid; gap: 2px; font-size: var(--text-sm); color: var(--color-text-secondary); }
+.sp-check { display: flex; gap: var(--space-2, 8px); align-items: center; min-height: var(--sp-tap); }
+.sp-group, .sp-dayedit {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3, 12px);
+  margin: 0;
+  display: grid;
+  gap: var(--space-2, 8px);
+}
+.sp-group legend, .sp-dayedit legend { padding: 0 4px; font-weight: 600; color: var(--color-text-primary); }
+.sp-travel { grid-template-columns: 1fr 6rem auto; align-items: center; }
+
+.sp-entry {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) 7rem 7rem minmax(6rem, 0.7fr) auto auto;
+  gap: var(--space-1, 4px);
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .sp-entry { grid-template-columns: 1fr 1fr; }
+  .sp-entry .sp-grow { grid-column: 1 / -1; }
+}
+.sp-rowlabel { color: var(--color-text-secondary); }
+.sp-weeks { min-width: 5rem; }
+.sp-dayend { align-items: center; }
+
+.sp-actions { display: flex; gap: var(--space-2, 8px); flex-wrap: wrap; }
+.sp-actions .btn { min-height: var(--sp-tap); }
+.sp-actions--add .btn { min-height: 40px; }
+.sp-actions__end { margin-inline-start: auto; }
+.sp-actions--sticky {
+  position: sticky;
+  bottom: 0;
+  padding: var(--space-2, 8px) 0;
+  background: var(--color-bg);
+}
+.sp-error { margin: 0; color: var(--color-danger, #c0392b); font-size: var(--text-sm); }
+
+.sp-message { padding: var(--space-6, 24px) 0; text-align: center; }
+.sp-message__title { margin: 0 0 var(--space-2, 8px); font-size: var(--text-lg); color: var(--color-text-primary); }
+.sp-message__text { color: var(--color-text-secondary); }
+
+/* Einstellungen (ohne Modul-CSS: dort gilt nur Yuvomis eigenes Aussehen) */
+.sp-grants { display: grid; gap: 8px; margin-bottom: 16px; }
+.sp-grants__row { display: grid; grid-template-columns: 1fr 10rem; gap: 8px; align-items: center; }
