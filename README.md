@@ -15,7 +15,7 @@ All times are **planned times**: no location tracking, no confirmation of arriva
 - **Today:** a card per child with the current and next section, the last entry of the day and the expected time home, or "arrival home still open" with the reason. Changes for the day are clearly marked. Other days via the date picker.
 - **Week:** a timetable per child (or "All" one below the other): periods as rows, breaks between them, afternoon and home time below. Absence, holidays and changes show right in the column.
 - **PDF:** week or plan as a landscape A4 PDF: tap "PDF", then "Save as PDF" in the print dialog. With A/B weeks each week gets its own page.
-- **Dashboard tile** ("Timetable today", under Overview → Customize): whoever has a plan of their own, i.e. the child, sees only their day with lessons, rooms, breaks and home time. Whoever has none (parents) sees one line per child. Once the day is over it shows the next school day.
+- **Dashboard tile** ("Timetable today", under Overview → Customize): whoever has a plan of their own, i.e. the child, sees only their day with lessons, rooms, breaks and home time. Whoever has none (parents) sees one line per child; tapping a name opens that child's whole day. Once the day is over it shows the next school day.
 - **Plans:**
   - Each child has their own plans with a name and a validity period.
   - Per weekday: lessons, optional childcare, optional activities (with place) and what happens afterwards (home or pick-up).

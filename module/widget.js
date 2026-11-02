@@ -35,6 +35,11 @@ const CSS = `
 .spw-seg { display: grid; grid-template-columns: 6.2em 1fr; gap: 6px; font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--color-text-primary); }
 .spw-seg--break, .spw-seg--gap { color: var(--color-text-tertiary, var(--color-text-secondary)); font-size: var(--text-xs); }
 .spw-seg--now { font-weight: 700; }
+.spw-more > summary { list-style: none; cursor: pointer; display: grid; gap: 2px; min-height: 44px; }
+.spw-more > summary::-webkit-details-marker { display: none; }
+.spw-chev { width: 16px; height: 16px; color: var(--color-text-secondary); transition: transform .15s; }
+.spw-more[open] .spw-chev { transform: rotate(180deg); }
+.spw-list--day { gap: 2px; margin-top: var(--space-2, 8px); padding-left: var(--space-2, 8px); border-left: 2px solid var(--color-border-subtle); }
 `;
 
 function ensureStyle() {
@@ -125,17 +130,22 @@ export async function renderWidget(container, { size } = {}) {
     return;
   }
 
-  let body;
-  if (me) {
-    const r = dayFor(me, date);
+  /** Der ganze Tag eines Kindes: jede Stunde mit Raum, Pausen, Nachmittag. */
+  const dayList = (r) => {
     // Stundenwechsel unter 10 Minuten machen die kleine Kachel nur unruhig.
     const segs = r.segments.filter((s) => s.type !== 'travel' && !((s.type === 'gap' || s.type === 'break') && s.end - s.start < 10));
     const cur = isToday ? positionAt(r, now.minutes).current : null;
-    body = `<p class="spw-day">${esc(dayLabel)}${r.exception ? ` <span class="spw-badge">${esc(tr('badge.exception'))}</span>` : ''}</p>
-      ${segs.length ? `<div class="spw-list">${segs.map((s) => `<div class="spw-seg spw-seg--${s.type}${s === cur ? ' spw-seg--now' : ''}">
+    return segs.length ? `<div class="spw-list spw-list--day">${segs.map((s) => `<div class="spw-seg spw-seg--${s.type}${s === cur ? ' spw-seg--now' : ''}">
         <span>${esc(time(s.start))}–${esc(time(s.end))}</span>
         <span>${esc(what(s))}${s.room ? ` · ${esc(s.room)}` : ''}${s.type !== 'lesson' && s.type !== 'break' && s.type !== 'gap' && s.place && s.place !== SCHOOL ? ` · ${esc(s.place)}` : ''}</span></div>`).join('')}</div>`
-        : `<p class="spw-line">${esc(statusText(r))}</p>`}
+      : `<p class="spw-line">${esc(statusText(r))}</p>`;
+  };
+
+  let body;
+  if (me) {
+    const r = dayFor(me, date);
+    body = `<p class="spw-day">${esc(dayLabel)}${r.exception ? ` <span class="spw-badge">${esc(tr('badge.exception'))}</span>` : ''}</p>
+      ${dayList(r)}
       ${homeText(r) ? `<p class="spw-home">${esc(homeText(r))}</p>` : ''}
       ${r.exception?.note ? `<p class="spw-line">${esc(r.exception.note)}</p>` : ''}`;
   } else {
@@ -150,9 +160,13 @@ export async function renderWidget(container, { size } = {}) {
         else line = tr('widget.span', { from: time(first.start), what: what(first) });
         if (r.last) line += ` · ${tr('dayLast', { what: what(r.last), until: time(r.last.end) })}`;
       }
-      return `<li class="spw-row"><span class="spw-name">${esc(p.display_name)}${r.exception ? ` <span class="spw-badge">${esc(tr('badge.exception'))}</span>` : ''}</span>
+      // Antippen des Namens klappt den ganzen Tag dieses Kindes auf.
+      return `<li class="spw-row"><details class="spw-more">
+        <summary><span class="spw-name">${esc(p.display_name)}${r.exception ? ` <span class="spw-badge">${esc(tr('badge.exception'))}</span>` : ''}
+          <i data-lucide="chevron-down" class="spw-chev" aria-hidden="true"></i></span>
         ${line ? `<span class="spw-line">${esc(line)}</span>` : ''}
-        ${homeText(r) ? `<span class="spw-home">${esc(homeText(r))}</span>` : ''}</li>`;
+        ${homeText(r) ? `<span class="spw-home">${esc(homeText(r))}</span>` : ''}</summary>
+        ${dayList(r)}${r.exception?.note ? `<p class="spw-line">${esc(r.exception.note)}</p>` : ''}</details></li>`;
     }).join('')}</ul>`;
   }
   container.insertAdjacentHTML('beforeend', frame(tr('title'), body));

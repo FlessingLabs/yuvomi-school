@@ -15,7 +15,7 @@ Alle Zeiten sind **Planzeiten**. Es gibt kein Standorttracking und keine Ankunft
 - **Heute:** eine Karte je Kind mit aktuellem und nächstem Abschnitt, dem letzten Eintrag des Tages und der erwarteten Heimkehr, oder „Heimkehr noch offen“ mit Grund. Abweichungen sind deutlich markiert. Andere Tage lassen sich über die Datumsauswahl ansehen.
 - **Woche:** als Stundenplan-Tabelle je Kind (oder „Alle“ untereinander): Stunden als Zeilen, Pausen dazwischen, darunter Nachmittag und Heimkehr. Abwesenheit, Ferien und Abweichungen stehen direkt in der Spalte.
 - **PDF:** Woche oder Plan als PDF im Querformat (A4): auf „PDF“ tippen, im Druckdialog „Als PDF speichern“ wählen. Bei A/B-Wochen bekommt jede Woche eine Seite.
-- **Kachel für die Übersicht** („Stundenplan heute“, unter Übersicht → Anpassen): Wer selbst einen Plan hat, also das Kind, sieht nur seinen Tag mit Stunden, Räumen, Pausen und Heimkehr. Wer keinen eigenen Plan hat (Eltern), sieht je Kind eine Zeile. Ist der Tag vorbei, zeigt sie den nächsten Schultag.
+- **Kachel für die Übersicht** („Stundenplan heute“, unter Übersicht → Anpassen): Wer selbst einen Plan hat, also das Kind, sieht nur seinen Tag mit Stunden, Räumen, Pausen und Heimkehr. Wer keinen eigenen Plan hat (Eltern), sieht je Kind eine Zeile; ein Tipp auf den Namen klappt den ganzen Tag dieses Kindes auf. Ist der Tag vorbei, zeigt sie den nächsten Schultag.
 - **Pläne:**
   - Jedes Kind hat eigene Pläne mit Bezeichnung und Gültigkeitszeitraum.
   - Je Wochentag: Unterricht, optionale Betreuung, optionale Projekte (mit Ort) und was danach passiert (nach Hause oder Abholung).

@@ -235,10 +235,11 @@ export async function render(container, { signal } = {}) {
     return parts.join(' · ');
   }
 
-  function timelineHtml(r) {
+  /** Alle Abschnitte des Tages; mit `nowMin` ist der laufende hervorgehoben. */
+  function timelineHtml(r, nowMin = null) {
     if (!r.segments.length) return '';
     return `<ol class="sp-timeline">${r.segments.map((s) => `
-      <li class="sp-seg sp-seg--${s.type}">
+      <li class="sp-seg sp-seg--${s.type}${nowMin !== null && s.start <= nowMin && nowMin < s.end ? ' sp-seg--now' : ''}"${nowMin !== null && s.start <= nowMin && nowMin < s.end ? ' aria-current="time"' : ''}>
         <span class="sp-seg__time">${esc(time(s.start))}–${esc(time(s.end))}</span>
         <span class="sp-seg__what">${esc(what(s))}${s.type === 'travel' || s.type === 'gap' || s.type === 'break' || s.place === SCHOOL || s.place == null ? '' : ` · ${esc(placeName(s.place))}`}${s.room ? ` · ${esc(s.room)}` : ''}</span>
       </li>`).join('')}</ol>`;
@@ -330,8 +331,8 @@ export async function render(container, { signal } = {}) {
         ${open ? `<p class="sp-card__home sp-card__home--open">${esc(tr('home.open'))}</p>
           <ul class="sp-reasons">${r.reasons.map((x) => `<li>${esc(reasonText(x))}</li>`).join('')}</ul>` : ''}
         ${r.exception?.note ? `<p class="sp-card__note">${esc(r.exception.note)}</p>` : ''}
-        <details class="sp-card__details"><summary>${esc(fmtDate(state.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</summary>${timelineHtml(r)}
-          ${schoolInfo(r.plan) ? `<p class="sp-hint">${esc(schoolInfo(r.plan))}</p>` : ''}</details>
+        <div class="sp-card__details">${timelineHtml(r, isToday ? state.nowMin : null)}
+          ${schoolInfo(r.plan) ? `<p class="sp-hint">${esc(schoolInfo(r.plan))}</p>` : ''}</div>
         ${canWrite(p.user_id) ? (editing ? exceptionFormHtml(p.user_id, state.date, r)
           : `<button type="button" class="btn btn--secondary sp-card__action" data-action="exception">${esc(tr(r.exception ? 'action.editException' : 'action.exception'))}</button>`) : ''}
       </article>`;

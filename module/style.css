@@ -256,3 +256,4 @@
   .sp-print .sp-badge { background: none; border: 1px solid #000; color: #000; }
   .sp-print * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+.sp-seg--now { font-weight: 700; background: color-mix(in srgb, var(--color-accent) 10%, transparent); }

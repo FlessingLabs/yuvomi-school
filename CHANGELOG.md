@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0 – 2026-11-02
+
+- Kachel in der Übersicht: Den Namen eines Kindes antippen klappt dessen ganzen Tag auf (Stunden, Räume, Pausen, Nachmittag).
+- Heute: Jede Karte zeigt direkt alle Stunden und Abschnitte des Tages; der laufende ist hervorgehoben.
+
 ## 1.2.1 – 2026-11-02
 
 - Wochentabelle: Lange Fächernamen brechen in ihrer Spalte um, statt in die Nachbarspalte zu laufen.
