@@ -196,6 +196,8 @@
   padding: 4px 6px;
   vertical-align: top;
   text-align: left;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 .sp-grid__corner, .sp-grid__slot { width: 6.5rem; }
 .sp-grid__slot { font-weight: 600; color: var(--color-text-primary); }

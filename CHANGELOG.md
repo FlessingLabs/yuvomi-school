@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 – 2026-11-02
+
+- Wochentabelle: Lange Fächernamen brechen in ihrer Spalte um, statt in die Nachbarspalte zu laufen.
+
 ## 1.2.0 – 2026-11-02
 
 - Pausen: Eine Lücke zwischen zwei Unterrichtsstunden heißt „Pause“ statt „keine Angabe“.
