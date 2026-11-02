@@ -202,11 +202,15 @@ export function computeDay({ plans = [], exceptions = [], date, holiday = null, 
     }
   }
 
-  // Luecken sichtbar machen - "keine Angabe", nicht Betreuung.
+  // Luecken sichtbar machen - "keine Angabe", nicht Betreuung. Zwischen zwei
+  // Unterrichtsstunden ist eine Luecke die Pause: das Kind ist in der Schule.
   const withGaps = [];
   for (const s of timed) {
     const prev = withGaps.at(-1);
-    if (prev && s.start > prev.end) withGaps.push({ type: 'gap', start: prev.end, end: s.start });
+    if (prev && s.start > prev.end) {
+      const type = prev.type === 'lesson' && s.type === 'lesson' ? 'break' : 'gap';
+      withGaps.push({ type, start: prev.end, end: s.start, place: type === 'break' ? SCHOOL : undefined });
+    }
     withGaps.push(s);
   }
   result.segments = withGaps;
@@ -278,7 +282,7 @@ export function computeDay({ plans = [], exceptions = [], date, holiday = null, 
 export function positionAt(dayResult, minutes) {
   const segs = dayResult.segments ?? [];
   const current = segs.find((s) => s.start <= minutes && minutes < s.end) ?? null;
-  const next = segs.find((s) => s.start > minutes && s.type !== 'gap') ?? null;
+  const next = segs.find((s) => s.start > minutes && s.type !== 'gap' && s.type !== 'break') ?? null;
   const before = segs.length > 0 && minutes < segs[0].start;
   const after = segs.length > 0 && minutes >= segs.at(-1).end;
   return { current, next, before, after };

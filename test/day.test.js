@@ -39,7 +39,7 @@ test('1. lessons end, the child goes straight home', () => {
   assert.equal(r.status, STATUS.OK);
   assert.equal(home(r), '13:20');
   assert.equal(r.last.title, 'Deutsch', 'the end of the last lesson counts, not the number of lessons');
-  assert.deepEqual(r.segments.map((s) => s.type), ['lesson', 'gap', 'lesson', 'travel']);
+  assert.deepEqual(r.segments.map((s) => s.type), ['lesson', 'break', 'lesson', 'travel'], 'between two lessons the gap is a break');
 });
 
 test('2. lessons -> care -> home', () => {

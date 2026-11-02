@@ -13,7 +13,9 @@ Alle Zeiten sind **Planzeiten**. Es gibt kein Standorttracking und keine Ankunft
 ## Was es kann
 
 - **Heute:** eine Karte je Kind mit aktuellem und nächstem Abschnitt, dem letzten Eintrag des Tages und der erwarteten Heimkehr, oder „Heimkehr noch offen“ mit Grund. Abweichungen sind deutlich markiert. Andere Tage lassen sich über die Datumsauswahl ansehen.
-- **Woche:** je Kind die Woche mit allen Abschnitten, Lücken und Heimkehrzeiten.
+- **Woche:** als Stundenplan-Tabelle je Kind (oder „Alle“ untereinander): Stunden als Zeilen, Pausen dazwischen, darunter Nachmittag und Heimkehr. Abwesenheit, Ferien und Abweichungen stehen direkt in der Spalte.
+- **PDF:** Woche oder Plan als PDF im Querformat (A4): auf „PDF“ tippen, im Druckdialog „Als PDF speichern“ wählen. Bei A/B-Wochen bekommt jede Woche eine Seite.
+- **Kachel für die Übersicht** („Stundenplan heute“, unter Übersicht → Anpassen): Wer selbst einen Plan hat, also das Kind, sieht nur seinen Tag mit Stunden, Räumen, Pausen und Heimkehr. Wer keinen eigenen Plan hat (Eltern), sieht je Kind eine Zeile. Ist der Tag vorbei, zeigt sie den nächsten Schultag.
 - **Pläne:**
   - Jedes Kind hat eigene Pläne mit Bezeichnung und Gültigkeitszeitraum.
   - Je Wochentag: Unterricht, optionale Betreuung, optionale Projekte (mit Ort) und was danach passiert (nach Hause oder Abholung).
@@ -22,6 +24,8 @@ Alle Zeiten sind **Planzeiten**. Es gibt kein Standorttracking und keine Ankunft
   - Optional A/B-Wochen.
   - **Stundenraster:** Die Zeiten der Schulstunden einmal anlegen (für alle Kinder einer Schule); im Plan dann nur „von Stunde – bis Stunde“ wählen. Ändert die Schule ihre Zeiten, ändert man nur das Raster. In der Tagesabweichung geht „endet nach Stunde …“.
   - „Wie Montag“ übernimmt einen Tag. „Als neuen Plan kopieren“ dient als Vorlage für das nächste Schuljahr.
+  - Klasse und Klassenlehrer:in mit Kontakt je Plan.
+  - „Auf anderes Kind kopieren“: Geschwister mit gleichem Stundenplan; Betreuung und Projekte nur auf Wunsch.
 - **Abweichung für einen Tag:**
   - schulfrei oder abwesend;
   - Unterricht fällt aus oder endet früher;
@@ -39,7 +43,7 @@ Alle Zeiten sind **Planzeiten**. Es gibt kein Standorttracking und keine Ankunft
   - **nach Hause:** Ende des letzten Eintrags plus Heimweg ab dessen Ort;
   - **Abholung:** eine eingetragene Heimkehrzeit, oder Abholzeit plus Fahrtdauer.
 - **Heimkehr bleibt offen**, wenn etwas fehlt oder sich widerspricht: Heimwegdauer für den Ort, Abholzeit, Überschneidung, Ende vor Beginn. Ebenso, wenn eine Abweichung etwas absagt, ohne zu sagen, was stattdessen gilt. Fällt etwa Theater aus, berechnet das Modul **keine** frühere Heimkehr; die Abweichung muss „länger Betreuung“ oder „direkt heim“ sagen.
-- **Lücken** zwischen Einträgen erscheinen als „keine Angabe“, nie als Betreuung.
+- **Lücken** zwischen Einträgen erscheinen als „keine Angabe“, nie als Betreuung. Zwischen zwei Unterrichtsstunden ist eine Lücke die **Pause**.
 - Ein Tag ohne Eintrag heißt „nichts eingetragen“, nicht „schulfrei“.
 - **Ferien und Feiertage** kommen aus Yuvomi (Einstellungen → Ferien: Land, Region, „Schulferien zeigen“). An solchen Tagen entfällt Unterricht; Betreuung und Projekte folgen der Ferienregel des Plans (findet statt, entfällt, offen). Fehlen die Ferieninfos oder das Recht auf den Kalender, sagt die Seite das.
 - **A/B-Wochen:** Eine A-Woche beginnt am eingetragenen Datum, danach wird in Kalenderwochen abgewechselt. Ferien verschieben den Rhythmus nicht.

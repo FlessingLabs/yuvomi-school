@@ -13,7 +13,9 @@ All times are **planned times**: no location tracking, no confirmation of arriva
 ## What it does
 
 - **Today:** a card per child with the current and next section, the last entry of the day and the expected time home, or "arrival home still open" with the reason. Changes for the day are clearly marked. Other days via the date picker.
-- **Week:** per child, every section, gap and home time of the week.
+- **Week:** a timetable per child (or "All" one below the other): periods as rows, breaks between them, afternoon and home time below. Absence, holidays and changes show right in the column.
+- **PDF:** week or plan as a landscape A4 PDF: tap "PDF", then "Save as PDF" in the print dialog. With A/B weeks each week gets its own page.
+- **Dashboard tile** ("Timetable today", under Overview → Customize): whoever has a plan of their own, i.e. the child, sees only their day with lessons, rooms, breaks and home time. Whoever has none (parents) sees one line per child. Once the day is over it shows the next school day.
 - **Plans:**
   - Each child has their own plans with a name and a validity period.
   - Per weekday: lessons, optional childcare, optional activities (with place) and what happens afterwards (home or pick-up).
@@ -22,6 +24,8 @@ All times are **planned times**: no location tracking, no confirmation of arriva
   - Optional A/B weeks.
   - **Lesson periods:** enter the times of the school periods once (for all children at one school); in a plan, choose only “from period – to period”. If the school changes its times, only the periods change. A day's change can say “ends after period …”.
   - "Same as Monday" copies a day. "Copy as new plan" serves as the template for the next school year.
+  - Class and class teacher with contact per plan.
+  - "Copy to another child": siblings with the same timetable; childcare and activities only on request.
 - **Change for one day:**
   - no school, or away;
   - lessons cancelled or ending early;
@@ -39,7 +43,7 @@ All times are **planned times**: no location tracking, no confirmation of arriva
   - **home:** end of the last entry plus the way home from its place;
   - **pick-up:** an entered arrival time, or pick-up time plus driving time.
 - **Arrival stays open** when something is missing or contradictory: travel time for the place, pick-up time, an overlap, an end before the start. Likewise when a change cancels something without saying what happens instead. If drama is cancelled, the module does **not** compute an earlier arrival; the change has to say "longer childcare" or "straight home".
-- **Gaps** between entries show as "nothing entered", never as childcare.
+- **Gaps** between entries show as "nothing entered", never as childcare. Between two lessons a gap is a **break**.
 - A day without entries says "nothing entered", not "no school".
 - **Holidays** come from Yuvomi (Settings → Holidays: country, region, "show school holidays"). On such days lessons are off; childcare and activities follow the plan's holiday rule (takes place, cancelled, open). Without holiday data or without the right to read the calendar, the page says so.
 - **A/B weeks:** an A week starts on the date entered; from there it alternates by calendar week. Holidays do not shift the rhythm.

@@ -23,8 +23,9 @@ import { showToast } from '/utils/toast-show.js';
 import { createStore, dataOf } from './lib/store.js';
 import { loadHolidays } from './lib/holidays.js';
 import { computeDay, positionAt, STATUS, SCHOOL } from './lib/day.js';
-import { fromMinutes, nowInZone, addDays, mondayOf, weekday } from './lib/time.js';
-import { emptyPlan, emptyDay, copyPlan, validatePlan, validateException, isEmptyException, overlappingPlans, WEEKDAYS, emptyRaster, nextPeriod, validateRaster } from './lib/plan.js';
+import { fromMinutes, nowInZone, addDays, mondayOf, weekday, abWeek } from './lib/time.js';
+import { buildWeekGrid } from './lib/grid.js';
+import { emptyPlan, emptyDay, copyPlan, copyPlanFor, cleanTeachers, validatePlan, validateException, isEmptyException, overlappingPlans, WEEKDAYS, emptyRaster, nextPeriod, validateRaster } from './lib/plan.js';
 
 const ID = 'flessinglabs-school';
 const tr = (key, params) => t(`extensions.${ID}.${key}`, params);
@@ -71,6 +72,8 @@ export async function render(container, { signal } = {}) {
     rasters: [],         // Stundenraster (haushaltsweit)
     rasterDraft: null,   // { base: record|null, raster }
     sharedWrite: false,  // darf Stundenraster aendern (Modulrecht schreiben)
+    weekAll: false,      // Woche: alle Kinder untereinander statt eines
+    copyTo: null,        // Plan-Id, deren "Auf anderes Kind kopieren" offen ist
   };
 
   container.replaceChildren();
@@ -181,6 +184,7 @@ export async function render(container, { signal } = {}) {
     if (s.type === 'project') return s.title || tr('type.project');
     if (s.type === 'care') return tr('type.care');
     if (s.type === 'travel') return s.mode === 'pickup' ? tr('type.pickup') : tr('type.travel');
+    if (s.type === 'break') return tr('type.break');
     return tr('type.gap');
   }
 
@@ -222,12 +226,21 @@ export async function render(container, { signal } = {}) {
     return out.join('');
   }
 
+  /** "Klasse 4b · Klassenlehrer:in: Frau Berg (0171 …)" - leer ohne Angaben. */
+  function schoolInfo(plan) {
+    if (!plan) return '';
+    const parts = [];
+    if (plan.class_name) parts.push(tr('school.class', { name: plan.class_name }));
+    for (const x of plan.teachers ?? []) parts.push(tr('school.teacher', { name: x.contact ? `${x.name} (${x.contact})` : x.name }));
+    return parts.join(' · ');
+  }
+
   function timelineHtml(r) {
     if (!r.segments.length) return '';
     return `<ol class="sp-timeline">${r.segments.map((s) => `
       <li class="sp-seg sp-seg--${s.type}">
         <span class="sp-seg__time">${esc(time(s.start))}–${esc(time(s.end))}</span>
-        <span class="sp-seg__what">${esc(what(s))}${s.type === 'travel' || s.type === 'gap' || s.place === SCHOOL || s.place == null ? '' : ` · ${esc(placeName(s.place))}`}${s.room ? ` · ${esc(s.room)}` : ''}</span>
+        <span class="sp-seg__what">${esc(what(s))}${s.type === 'travel' || s.type === 'gap' || s.type === 'break' || s.place === SCHOOL || s.place == null ? '' : ` · ${esc(placeName(s.place))}`}${s.room ? ` · ${esc(s.room)}` : ''}</span>
       </li>`).join('')}</ol>`;
   }
 
@@ -295,6 +308,7 @@ export async function render(container, { signal } = {}) {
       if (pos.after && r.home) lines.push(tr('now.after', { home: time(r.home.minutes) }));
       else if (pos.before) lines.push(tr('now.before', { at: time(r.segments[0].start), what: what(r.segments[0]) }));
       else if (pos.current?.type === 'travel') lines.push(tr('now.travel'));
+      else if (pos.current?.type === 'break') lines.push(tr('now.break', { until: time(pos.current.end) }));
       else if (pos.current?.type === 'gap') lines.push(tr('now.gap', { until: time(pos.current.end) }));
       else if (pos.current) lines.push(tr('now.current', { what: what(pos.current), until: time(pos.current.end) }));
       if (pos.next && !pos.before && pos.next.type !== 'travel') lines.push(tr('next', { what: what(pos.next), at: time(pos.next.start) }));
@@ -316,7 +330,8 @@ export async function render(container, { signal } = {}) {
         ${open ? `<p class="sp-card__home sp-card__home--open">${esc(tr('home.open'))}</p>
           <ul class="sp-reasons">${r.reasons.map((x) => `<li>${esc(reasonText(x))}</li>`).join('')}</ul>` : ''}
         ${r.exception?.note ? `<p class="sp-card__note">${esc(r.exception.note)}</p>` : ''}
-        <details class="sp-card__details"><summary>${esc(fmtDate(state.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</summary>${timelineHtml(r)}</details>
+        <details class="sp-card__details"><summary>${esc(fmtDate(state.date, { weekday: 'short', day: 'numeric', month: 'short' }))}</summary>${timelineHtml(r)}
+          ${schoolInfo(r.plan) ? `<p class="sp-hint">${esc(schoolInfo(r.plan))}</p>` : ''}</details>
         ${canWrite(p.user_id) ? (editing ? exceptionFormHtml(p.user_id, state.date, r)
           : `<button type="button" class="btn btn--secondary sp-card__action" data-action="exception">${esc(tr(r.exception ? 'action.editException' : 'action.exception'))}</button>`) : ''}
       </article>`;
@@ -482,37 +497,198 @@ export async function render(container, { signal } = {}) {
               data-action="focus" data-person="${p.user_id}" aria-pressed="${p.user_id === state.focus}">${esc(p.display_name)}</button>`).join('')}</div>`;
   }
 
+  /** Die Tage einer Woche: Mo-Fr, Sa/So nur wenn dort etwas steht. */
+  function weekDays(personId, monday) {
+    return [...Array(7)].map((_, i) => addDays(monday, i))
+      .map((date) => ({ key: date, result: dayFor(personId, date) }))
+      .filter(({ key, result }) => weekday(key) <= 5 || result.segments.length || result.exception);
+  }
+
+  /** Was in einer Spalte ohne Unterricht steht (abwesend, Ferien, kein Plan ...). */
+  function statusCell(r) {
+    if (r.status === STATUS.ABSENT) return tr('status.absent');
+    if (r.status === STATUS.OFF && r.holiday) return r.holiday.name;
+    if (r.status === STATUS.CONFLICT) return tr('status.conflict');
+    return statusLines(r)[0] ?? '';
+  }
+
+  /** Text statt Stunden, wenn an dem Tag kein Unterricht ist - sonst null. */
+  function columnStatus(c) {
+    if (c.status) return statusCell(c.result);
+    if (c.cells.size) return null;
+    const r = c.result;
+    if (r.holiday) return r.holiday.name;
+    if (r.exception?.day === 'no_school') return tr('ex.day.no_school');
+    if (r.exception?.lessons?.cancelled) return tr('grid.cancelled');
+    return null;
+  }
+
+  /**
+   * Die Wochentabelle: Zeilen = Stunden (mit Pausen), Spalten = Tage, darunter
+   * Nachmittag und Heimkehr. `dated` zeigt Datum, Abweichungen und Ferien -
+   * ohne ist es der allgemeine Plan (PDF eines Plans).
+   */
+  function gridHtml(days, { dated = true } = {}) {
+    const { rows, columns } = buildWeekGrid(days, state.rasters);
+    const lessonRows = rows.length ? rows : [{ kind: 'period', n: null, start: null, end: null, empty: true }];
+    const head = columns.map((c) => {
+      const r = c.result;
+      const cls = ['sp-grid__day'];
+      if (dated && c.key === state.today) cls.push('sp-grid__day--today');
+      if (dated && r.exception) cls.push('sp-grid__day--exception');
+      if (dated && (r.status === STATUS.ABSENT || r.status === STATUS.OFF)) cls.push('sp-grid__day--off');
+      const label = dated ? fmtDate(c.key, { weekday: 'short', day: 'numeric', month: 'numeric' }) : tr(`weekday.${weekday(c.key)}`);
+      return `<th scope="col" class="${cls.join(' ')}">${esc(label)}
+        ${dated ? `<div class="sp-grid__badges">${badges(r)}</div>` : ''}
+        ${dated && r.exception?.note ? `<div class="sp-grid__note">${esc(r.exception.note)}</div>` : ''}</th>`;
+    }).join('');
+    const body = lessonRows.map((row, ri) => {
+      const label = row.empty ? esc(tr('grid.lessons'))
+        : row.kind === 'break'
+          ? `${esc(tr('type.break'))} <small>${esc(time(row.start))}–${esc(time(row.end))}</small>`
+          : `${row.n ? `${esc(tr('grid.period', { n: row.n }))} ` : ''}<small>${esc(time(row.start))}–${esc(time(row.end))}</small>`;
+      const cells = columns.map((c) => {
+        const text = columnStatus(c);
+        if (text !== null) {
+          return ri === 0 ? `<td class="sp-grid__status" rowspan="${lessonRows.length}">${esc(text)}</td>` : '';
+        }
+        const cell = c.cells.get(ri);
+        if (cell) {
+          const seg = cell.seg;
+          return `<td class="sp-grid__lesson"${cell.span > 1 ? ` rowspan="${cell.span}"` : ''}>
+            <span class="sp-grid__title">${esc(seg.title || tr('type.lesson'))}</span>${seg.room ? `<span class="sp-grid__room">${esc(seg.room)}</span>` : ''}</td>`;
+        }
+        if (c.covered.has(ri)) return '';
+        return `<td class="${row.kind === 'break' ? 'sp-grid__break' : 'sp-grid__free'}"></td>`;
+      }).join('');
+      return `<tr class="sp-grid__row sp-grid__row--${row.kind}"><th scope="row" class="sp-grid__slot">${label}</th>${cells}</tr>`;
+    }).join('');
+    const afternoon = columns.map((c) => {
+      const items = [...c.extra, ...c.afternoon].sort((a, b) => a.start - b.start);
+      return `<td class="sp-grid__after">${items.map((x) => `<div class="sp-grid__item sp-grid__item--${x.type}">
+        <small>${esc(time(x.start))}–${esc(time(x.end))}</small> ${esc(what(x))}${x.place && x.place !== SCHOOL ? ` · ${esc(placeName(x.place))}` : ''}</div>`).join('')}</td>`;
+    }).join('');
+    const homeRow = columns.map((c) => {
+      const r = c.result;
+      if (r.status === STATUS.OK && r.home) return `<td class="sp-grid__home">${esc(time(r.home.minutes))}${r.home.mode === 'pickup' ? ` <small>${esc(tr('type.pickup'))}</small>` : ''}</td>`;
+      if (r.status === STATUS.OPEN || r.status === STATUS.CONFLICT) {
+        return `<td class="sp-grid__home sp-grid__home--open" title="${esc(r.reasons.map(reasonText).join(' '))}">${esc(tr('grid.open'))}</td>`;
+      }
+      return '<td class="sp-grid__home">–</td>';
+    }).join('');
+    const hasAfternoon = columns.some((c) => c.afternoon.length || c.extra.length);
+    return `
+      <div class="sp-gridwrap"><table class="sp-grid">
+        <thead><tr><th class="sp-grid__corner" scope="col"><span class="sr-only">${esc(tr('grid.time'))}</span></th>${head}</tr></thead>
+        <tbody>${body}
+          ${hasAfternoon ? `<tr class="sp-grid__row sp-grid__row--after"><th scope="row" class="sp-grid__slot">${esc(tr('grid.afternoon'))}</th>${afternoon}</tr>` : ''}
+          <tr class="sp-grid__row sp-grid__row--home"><th scope="row" class="sp-grid__slot">${esc(tr('grid.home'))}</th>${homeRow}</tr>
+        </tbody>
+      </table></div>`;
+  }
+
+  /** Eine Woche eines Kindes: Name, Klasse/Lehrkraft, Tabelle. */
+  function personWeekHtml(p, monday, { heading = false } = {}) {
+    const days = weekDays(p.user_id, monday);
+    const plan = days.find((d) => d.result.plan)?.result.plan ?? null;
+    const info = schoolInfo(plan);
+    return `<section class="sp-person">
+      ${heading ? `<h2 class="sp-person__name">${esc(p.display_name)}</h2>` : ''}
+      ${info ? `<p class="sp-hint">${esc(info)}</p>` : ''}
+      ${gridHtml(days)}</section>`;
+  }
+
+  function weekRange(monday) {
+    return `${fmtDate(monday, { day: 'numeric', month: 'short' })} – ${fmtDate(addDays(monday, 6), { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  }
+
   function weekHtml() {
     const list = withPlans();
     if (!list.length) return `<p class="sp-message__text">${esc(tr(state.people.some((p) => p.access === 'write') ? 'today.none' : 'today.noPeople'))}</p>`;
     if (!list.some((p) => p.user_id === state.focus)) state.focus = list[0].user_id;
+    const all = state.weekAll && list.length > 1;
     const monday = mondayOf(state.date);
-    const days = [...Array(7)].map((_, i) => addDays(monday, i));
-    const rows = days.map((date) => {
-      const r = dayFor(state.focus, date);
-      const wd = weekday(date);
-      if (wd > 5 && !r.segments.length && !r.exception) return '';
-      const home = homeLine(r);
-      const open = r.status === STATUS.OPEN || r.status === STATUS.CONFLICT;
-      return `
-        <section class="sp-day${date === state.today ? ' sp-day--today' : ''}${r.exception ? ' sp-day--exception' : ''}">
-          <h3 class="sp-day__name">${esc(fmtDate(date, { weekday: 'long', day: 'numeric', month: 'short' }))} ${badges(r)}</h3>
-          ${timelineHtml(r)}
-          ${statusLines(r).map((l) => `<p class="sp-day__status">${esc(l)}</p>`).join('')}
-          ${home ? `<p class="sp-day__home">${esc(home)}</p>` : ''}
-          ${open ? `<p class="sp-day__home sp-day__home--open">${esc(tr('home.open'))}: ${esc(r.reasons.map(reasonText).join(' '))}</p>` : ''}
-        </section>`;
-    }).join('');
+    const chips = list.length > 1 ? `<div class="sp-chips">
+      <button type="button" class="btn ${all ? 'btn--primary' : 'btn--secondary'} sp-chip" data-action="week-all" aria-pressed="${all}">${esc(tr('week.all'))}</button>
+      ${list.map((p) => `<button type="button" class="btn ${!all && p.user_id === state.focus ? 'btn--primary' : 'btn--secondary'} sp-chip"
+        data-action="focus" data-person="${p.user_id}" aria-pressed="${!all && p.user_id === state.focus}">${esc(p.display_name)}</button>`).join('')}</div>` : '';
+    const shown = all ? list : [person(state.focus)];
     return `
-      ${personChips(list)}
+      ${chips}
       <div class="sp-datenav">
         <button type="button" class="btn btn--secondary sp-icon" data-action="day" data-delta="-7" aria-label="${esc(tr('week.prev'))}"><i data-lucide="chevron-left" aria-hidden="true"></i></button>
-        <p class="sp-dayname">${esc(fmtDate(monday, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(addDays(monday, 6), { day: 'numeric', month: 'short', year: 'numeric' }))}</p>
+        <p class="sp-dayname">${esc(weekRange(monday))}</p>
         <button type="button" class="btn btn--secondary sp-icon" data-action="day" data-delta="7" aria-label="${esc(tr('week.next'))}"><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+        <button type="button" class="btn btn--secondary" data-action="print-week"><i data-lucide="printer" aria-hidden="true"></i> ${esc(tr('action.pdf'))}</button>
       </div>
       ${holidayHint()}
-      <div class="sp-week">${rows}</div>
+      ${shown.map((p) => personWeekHtml(p, monday, { heading: all })).join('')}
       <p class="sp-note">${esc(tr('planNote'))}</p>`;
+  }
+
+  // ---- PDF (Drucken, immer Querformat) -------------------------------------
+
+  /**
+   * Druckt fertiges HTML ueber den Druckdialog des Browsers ("Als PDF
+   * speichern"). Das Blatt haengt kurz direkt am <body>; style.css blendet beim
+   * Drucken alles andere aus und setzt A4 quer.
+   */
+  function printPages(pages, title) {
+    document.querySelector('.sp-print')?.remove();
+    const root = document.createElement('div');
+    root.className = 'sp-print';
+    root.insertAdjacentHTML('beforeend', pages.map((pg) => `<section class="sp-print__page">${pg}
+      <p class="sp-print__foot">${esc(tr('print.foot', { date: fmtDate(state.today, { day: 'numeric', month: 'long', year: 'numeric' }) }))}</p></section>`).join(''));
+    document.body.append(root);
+    document.documentElement.classList.add('sp-printing');
+    const oldTitle = document.title;
+    document.title = title;
+    const done = () => {
+      root.remove();
+      document.documentElement.classList.remove('sp-printing');
+      document.title = oldTitle;
+    };
+    window.addEventListener('afterprint', done, { once: true });
+    window.print();
+  }
+
+  function printHead(name, sub, plan) {
+    const info = schoolInfo(plan);
+    return `<header class="sp-print__head"><h1>${esc(tr('title'))} · ${esc(name)}</h1>
+      <p>${esc(sub)}${info ? ` · ${esc(info)}` : ''}</p></header>`;
+  }
+
+  function printWeek() {
+    const list = withPlans();
+    const shown = state.weekAll && list.length > 1 ? list : [person(state.focus)].filter(Boolean);
+    const monday = mondayOf(state.date);
+    const pages = shown.map((p) => {
+      const days = weekDays(p.user_id, monday);
+      const plan = days.find((d) => d.result.plan)?.result.plan ?? null;
+      return printHead(p.display_name, tr('print.week', { range: weekRange(monday) }), plan) + gridHtml(days);
+    });
+    printPages(pages, `${tr('title')} ${shown.map((p) => p.display_name).join(', ')} ${monday}`);
+  }
+
+  /** Der allgemeine Plan ohne Datum - bei A/B-Wochen je eine Seite. */
+  function printPlan(plan) {
+    if (!plan) return;
+    const p = person(state.focus);
+    const open = { ...plan, valid_from: '0000-01-01', valid_to: '9999-12-31' };
+    let mondays = [mondayOf(state.today)];
+    if (plan.ab_anchor) {
+      const m = mondays[0];
+      mondays = abWeek(m, plan.ab_anchor) === 'A' ? [m, addDays(m, 7)] : [addDays(m, 7), m];
+    }
+    const range = tr('plans.range', { from: fmtDate(plan.valid_from, { day: 'numeric', month: 'short', year: 'numeric' }), to: fmtDate(plan.valid_to, { day: 'numeric', month: 'short', year: 'numeric' }) });
+    const pages = mondays.map((monday, i) => {
+      const days = [...Array(7)].map((_, d) => addDays(monday, d))
+        .map((date) => ({ key: date, result: computeDay({ plans: [open], date, rasters: state.rasters }) }))
+        .filter(({ key, result }) => weekday(key) <= 5 || result.segments.length);
+      const sub = `${plan.label} · ${range}${plan.ab_anchor ? ` · ${tr('badge.week', { week: i === 0 ? 'A' : 'B' })}` : ''}`;
+      return printHead(p?.display_name ?? '', sub, plan) + gridHtml(days, { dated: false });
+    });
+    printPages(pages, `${tr('title')} ${p?.display_name ?? ''} ${plan.label}`);
   }
 
   // ---- Plaene --------------------------------------------------------------
@@ -539,11 +715,14 @@ export async function render(container, { signal } = {}) {
         <li class="sp-plan" data-plan="${esc(p.id)}">
           <div class="sp-plan__head">
             <div><p class="sp-plan__label">${esc(p.label)}</p>
-              <p class="sp-plan__meta">${esc(range)} · ${esc(planState(p))}${clash.length ? ` · <strong>${esc(tr('plans.overlap', { labels: clash.map((c) => c.label).join(', ') }))}</strong>` : ''}</p></div>
-            ${write && !draft ? `<div class="sp-plan__tools">
-              <button type="button" class="btn btn--secondary" data-action="edit-plan">${esc(tr('action.edit'))}</button>
-              <button type="button" class="btn btn--secondary" data-action="copy-plan">${esc(tr('action.copyPlan'))}</button></div>` : ''}
+              <p class="sp-plan__meta">${esc(range)} · ${esc(planState(p))}${p.class_name ? ` · ${esc(tr('school.class', { name: p.class_name }))}` : ''}${clash.length ? ` · <strong>${esc(tr('plans.overlap', { labels: clash.map((c) => c.label).join(', ') }))}</strong>` : ''}</p></div>
+            ${!draft ? `<div class="sp-plan__tools">
+              ${write ? `<button type="button" class="btn btn--secondary" data-action="edit-plan">${esc(tr('action.edit'))}</button>
+              <button type="button" class="btn btn--secondary" data-action="copy-plan">${esc(tr('action.copyPlan'))}</button>` : ''}
+              ${copyTargets().length ? `<button type="button" class="btn btn--secondary" data-action="copy-to">${esc(tr('action.copyTo'))}</button>` : ''}
+              <button type="button" class="btn btn--secondary" data-action="print-plan"><i data-lucide="printer" aria-hidden="true"></i> ${esc(tr('action.pdf'))}</button></div>` : ''}
           </div>
+          ${state.copyTo === p.id && !draft ? copyFormHtml() : ''}
         </li>`;
     }).join('');
     return `
@@ -553,6 +732,37 @@ export async function render(container, { signal } = {}) {
       ${draft && !draft.base ? `<div class="sp-plan sp-plan--editing">${planEditorHtml(draft)}</div>` : ''}
       ${write && !draft ? `<button type="button" class="btn btn--primary sp-new" data-action="new-plan">${esc(tr('action.newPlan'))}</button>` : ''}
       ${rastersHtml()}`;
+  }
+
+  /** Kinder, fuer die man einen Plan anlegen darf - ohne das gerade gewaehlte. */
+  function copyTargets() {
+    return state.people.filter((p) => p.access === 'write' && p.user_id !== state.focus);
+  }
+
+  function copyFormHtml() {
+    return `
+      <form class="sp-planedit" data-action="copy-to" novalidate>
+        <label class="sp-field"><span>${esc(tr('copy.target'))}</span>
+          <select class="form-input" name="target">${copyTargets().map((p) => `<option value="${p.user_id}">${esc(p.display_name)}</option>`).join('')}</select></label>
+        <label class="sp-check"><input type="checkbox" name="care" checked> ${esc(tr('copy.care'))}</label>
+        <label class="sp-check"><input type="checkbox" name="projects"> ${esc(tr('copy.projects'))}</label>
+        <p class="sp-hint">${esc(tr('copy.intro'))}</p>
+        <div class="sp-actions">
+          <button type="submit" class="btn btn--primary">${esc(tr('copy.start'))}</button>
+          <button type="button" class="btn btn--secondary" data-action="cancel-copy">${esc(tr('action.cancel'))}</button>
+        </div>
+      </form>`;
+  }
+
+  function startCopy(form) {
+    const base = plansOf(state.focus).find((p) => p.id === state.copyTo);
+    const target = Number(form.elements.target.value);
+    if (!base || !canWrite(target)) return;
+    const plan = copyPlanFor(base, { care: form.elements.care.checked, projects: form.elements.projects.checked });
+    state.copyTo = null;
+    state.focus = target;
+    state.draft = { personId: target, base: null, plan, hint: tr('copy.hint', { name: person(target)?.display_name ?? '' }) };
+    renderAll();
   }
 
   // ---- Stundenraster (haushaltsweit) ---------------------------------------
@@ -715,6 +925,7 @@ export async function render(container, { signal } = {}) {
     }).join('');
     return `
       <form class="sp-planedit" data-action="save-plan" novalidate>
+        ${draft.hint ? `<p class="sp-hint sp-hint--strong">${esc(draft.hint)}</p>` : ''}
         <label class="sp-field"><span>${esc(tr('field.label'))}</span>
           <input class="form-input" maxlength="80" placeholder="${esc(tr('field.labelPlaceholder'))}" ${bind('label', 'text')} value="${val('label')}"></label>
         <div class="sp-row">
@@ -726,6 +937,18 @@ export async function render(container, { signal } = {}) {
             <option value="">${esc(tr('raster.noneSelected'))}</option>
             ${state.rasters.map((r) => `<option value="${esc(r.id)}"${p.periods_id === r.id ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}
           </select></label>
+        <fieldset class="sp-group"><legend>${esc(tr('field.school'))}</legend>
+          <label class="sp-mini">${esc(tr('field.class'))}
+            <input class="form-input sp-class" maxlength="20" placeholder="${esc(tr('field.classPlaceholder'))}" ${bind('class_name', 'text')} value="${val('class_name')}"></label>
+          ${(p.teachers ?? []).map((x, i) => `<div class="sp-row">
+            <label class="sp-field"><span>${esc(tr('field.teacherName'))}</span>
+              <input class="form-input" maxlength="80" ${bind(`teachers.${i}.name`, 'text')} value="${val(`teachers.${i}.name`)}"></label>
+            <label class="sp-field"><span>${esc(tr('field.teacherContact'))}</span>
+              <input class="form-input" maxlength="80" ${bind(`teachers.${i}.contact`, 'text')} value="${val(`teachers.${i}.contact`)}"></label>
+            <button type="button" class="btn btn--secondary sp-icon" data-action="remove-row" data-path="teachers" data-index="${i}" aria-label="${esc(tr('action.remove'))}"><i data-lucide="x" aria-hidden="true"></i></button>
+          </div>`).join('')}
+          <div class="sp-actions sp-actions--add"><button type="button" class="btn btn--secondary" data-action="add-teacher">${esc(tr('action.addTeacher'))}</button></div>
+        </fieldset>
         <fieldset class="sp-group"><legend>${esc(tr('field.travel'))}</legend>
           ${placesOf(p).map((place) => `<label class="sp-mini sp-travel">${esc(tr('field.travelFrom', { place: placeName(place) }))}
             <input type="number" min="0" max="600" inputmode="numeric" class="form-input" data-travel="${esc(place)}" value="${esc(p.travel?.[place] ?? '')}"> ${esc(tr('field.minutes'))}</label>`).join('')}
@@ -784,6 +1007,10 @@ export async function render(container, { signal } = {}) {
       });
     }
     p.label = String(p.label ?? '').trim();
+    p.class_name = String(p.class_name ?? '').trim();
+    if (!p.class_name) delete p.class_name;
+    p.teachers = cleanTeachers(p.teachers);
+    if (!p.teachers.length) delete p.teachers;
     return p;
   }
 
@@ -892,6 +1119,7 @@ export async function render(container, { signal } = {}) {
     if (form.dataset.action === 'save-exception') saveException(form);
     else if (form.dataset.action === 'save-plan') savePlan(form);
     else if (form.dataset.action === 'save-raster') saveRaster(form);
+    else if (form.dataset.action === 'copy-to') startCopy(form);
   }, { signal });
 
   container.addEventListener('click', (e) => {
@@ -906,11 +1134,18 @@ export async function render(container, { signal } = {}) {
         state.draft = null;
         state.rasterDraft = null;
         state.exEdit = null;
+        state.copyTo = null;
         renderAll();
         break;
       case 'day': moveDate(addDays(state.date, Number(el.dataset.delta))); break;
       case 'today': moveDate(state.today); break;
-      case 'focus': state.focus = Number(el.dataset.person); state.draft = null; renderAll(); break;
+      case 'focus': state.focus = Number(el.dataset.person); state.weekAll = false; state.draft = null; state.copyTo = null; renderAll(); break;
+      case 'week-all': state.weekAll = true; renderAll(); break;
+      case 'copy-to': state.copyTo = el.closest('[data-plan]').dataset.plan; renderAll(); break;
+      case 'cancel-copy': state.copyTo = null; renderAll(); break;
+      case 'print-week': printWeek(); break;
+      case 'print-plan': printPlan(plansOf(state.focus).find((p) => p.id === el.closest('[data-plan]').dataset.plan)); break;
+      case 'add-teacher': (state.draft.plan.teachers ??= []).push({ name: '', contact: '' }); rerenderEditor(); break;
       case 'exception': state.exEdit = { personId: Number(card.dataset.person), date: state.date }; renderAll(); break;
       case 'cancel-exception': state.exEdit = null; renderAll(); break;
       case 'delete-exception': deleteException(Number(el.closest('form').dataset.person)); break;

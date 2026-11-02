@@ -30,6 +30,30 @@ export function copyPlan(plan, { label, validFrom, validTo }) {
   return { ...data, label, valid_from: validFrom, valid_to: validTo };
 }
 
+/**
+ * Kopie fuer ein anderes Kind: gleicher Unterricht, gleicher Zeitraum.
+ * Betreuung und Projekte nur, wenn gewuenscht - Geschwister teilen oft den
+ * Stundenplan, aber nicht die Nachmittage.
+ */
+export function copyPlanFor(plan, { care = true, projects = false } = {}) {
+  const { id, revision, subject_id: _s, ...data } = structuredClone(plan);
+  for (const d of WEEKDAYS) {
+    const day = data.days?.[d];
+    if (!day) continue;
+    if (!care) day.care = [];
+    if (!projects) day.projects = [];
+  }
+  return data;
+}
+
+/** Lehrkraefte ohne leere Zeilen, Texte getrimmt. */
+export function cleanTeachers(list) {
+  return (list ?? [])
+    .map((x) => ({ name: String(x?.name ?? '').trim(), contact: String(x?.contact ?? '').trim() }))
+    .filter((x) => x.name || x.contact)
+    .map((x) => (x.contact ? x : { name: x.name }));
+}
+
 /** Plaene, deren Zeitraum sich mit [from, to] ueberschneidet (ohne `exceptId`). */
 export function overlappingPlans(plans, from, to, exceptId = null) {
   return plans.filter((p) => p.id !== exceptId && p.valid_from <= to && from <= p.valid_to);
@@ -48,6 +72,11 @@ export function validatePlan(plan, others = []) {
   else {
     const clash = overlappingPlans(others, plan.valid_from, plan.valid_to, plan.id);
     if (clash.length) add('range_overlaps', { labels: clash.map((p) => p.label) });
+  }
+  if (String(plan.class_name ?? '').length > 20) add('class_long');
+  for (const x of plan.teachers ?? []) {
+    if (!String(x.name ?? '').trim()) add('teacher_name_missing');
+    if (String(x.name ?? '').length > MAX_TEXT || String(x.contact ?? '').length > MAX_TEXT) add('teacher_long');
   }
   if (plan.ab_anchor !== null && plan.ab_anchor !== undefined && !isDate(plan.ab_anchor)) add('ab_anchor_invalid');
   for (const [place, minutes] of Object.entries(plan.travel ?? {})) {

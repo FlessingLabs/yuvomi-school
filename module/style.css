@@ -175,3 +175,82 @@
 .sp-section { margin: var(--space-6, 24px) 0 var(--space-1, 4px); font-size: var(--text-lg); }
 .sp-entry--period { grid-template-columns: 6rem 7rem 7rem auto; }
 @media (max-width: 640px) { .sp-entry--period { grid-template-columns: 1fr 1fr; } }
+.sp-seg--break { border-left-style: dashed; color: var(--color-text-secondary); }
+.sp-hint--strong { color: var(--color-text-primary); font-weight: 600; }
+.sp-class { max-width: 8rem; }
+
+/* ---- Wochentabelle ---- */
+.sp-person { margin-top: var(--space-4, 16px); }
+.sp-person__name { margin: 0 0 var(--space-1, 4px); font-size: var(--text-lg); color: var(--color-text-primary); }
+.sp-gridwrap { overflow-x: auto; margin-top: var(--space-2, 8px); }
+.sp-grid {
+  width: 100%;
+  min-width: 36rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.sp-grid th, .sp-grid td {
+  border: 1px solid var(--color-border-subtle);
+  padding: 4px 6px;
+  vertical-align: top;
+  text-align: left;
+}
+.sp-grid__corner, .sp-grid__slot { width: 6.5rem; }
+.sp-grid__slot { font-weight: 600; color: var(--color-text-primary); }
+.sp-grid__slot small { display: block; font-weight: 400; color: var(--color-text-secondary); }
+.sp-grid__day { color: var(--color-text-primary); }
+.sp-grid__day--today { box-shadow: inset 0 3px 0 var(--color-accent); }
+.sp-grid__day--exception { box-shadow: inset 0 3px 0 var(--color-warning, var(--color-accent)); }
+.sp-grid__day--off { color: var(--color-text-secondary); }
+.sp-grid__badges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; font-weight: 400; }
+.sp-grid__note { margin-top: 2px; font-weight: 400; font-style: italic; color: var(--color-text-secondary); }
+.sp-grid__lesson {
+  background: color-mix(in srgb, var(--active-module-accent, var(--color-accent)) 12%, var(--color-surface));
+}
+.sp-grid__title { display: block; font-weight: 600; color: var(--color-text-primary); }
+.sp-grid__room { display: block; color: var(--color-text-secondary); }
+.sp-grid__row--break th, .sp-grid__row--break td { padding-block: 1px; font-size: var(--text-xs); }
+.sp-grid__row--break .sp-grid__slot { font-weight: 400; color: var(--color-text-secondary); }
+.sp-grid__row--break .sp-grid__slot small { display: inline; }
+.sp-grid__break { background: var(--color-surface-2); }
+.sp-grid__status {
+  vertical-align: middle;
+  text-align: center;
+  color: var(--color-text-secondary);
+  background: repeating-linear-gradient(135deg, transparent 0 8px, var(--color-surface-2) 8px 16px);
+  font-weight: 600;
+}
+.sp-grid__item { margin-bottom: 2px; }
+.sp-grid__item small { color: var(--color-text-secondary); }
+.sp-grid__home { font-weight: 600; color: var(--color-text-primary); }
+.sp-grid__home small { font-weight: 400; color: var(--color-text-secondary); }
+.sp-grid__home--open { font-weight: 400; color: var(--color-text-secondary); }
+
+/* ---- PDF / Drucken: immer A4 quer, nur das Blatt ---- */
+.sp-print { display: none; }
+@page { size: A4 landscape; margin: 10mm; }
+@media print {
+  html.sp-printing body > :not(.sp-print) { display: none !important; }
+  html.sp-printing .sp-print { display: block; color: #000; background: #fff; }
+  .sp-print__page { break-after: page; page-break-after: always; }
+  .sp-print__page:last-child { break-after: auto; page-break-after: auto; }
+  .sp-print__head h1 { margin: 0; font-size: 16pt; }
+  .sp-print__head p { margin: 2pt 0 6pt; font-size: 10pt; }
+  .sp-print__foot { margin-top: 4pt; font-size: 8pt; color: #555; }
+  .sp-print .sp-gridwrap { overflow: visible; }
+  .sp-print .sp-grid { min-width: 0; font-size: 9pt; }
+  .sp-print .sp-grid th, .sp-print .sp-grid td { border-color: #999; }
+  /* Papier ist immer hell - auch wenn die App gerade dunkel ist. */
+  .sp-print, .sp-print * { color: #000 !important; }
+  .sp-print small, .sp-print .sp-grid__room, .sp-print .sp-grid__note, .sp-print .sp-print__foot { color: #444 !important; }
+  .sp-print .sp-grid__corner, .sp-print .sp-grid__slot { width: 7.5rem; }
+  .sp-print .sp-grid__lesson { background: #e8f0fe; }
+  .sp-print .sp-grid__break { background: #f2f2f2; }
+  .sp-print .sp-grid__status { background: #f2f2f2; }
+  .sp-print .sp-grid__day--today { box-shadow: none; }
+  .sp-print .sp-grid__day--exception { box-shadow: inset 0 3px 0 #000; }
+  .sp-print .sp-badge { background: none; border: 1px solid #000; color: #000; }
+  .sp-print * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

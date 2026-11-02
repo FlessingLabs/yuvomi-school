@@ -19,7 +19,7 @@ test('no key is also the prefix of another key', () => {
 });
 
 test('every key the page and settings use exists', () => {
-  const src = ['index.js', 'settings.js'].map((f) => readFileSync(new URL(`../module/${f}`, import.meta.url), 'utf8')).join('\n');
+  const src = ['index.js', 'settings.js', 'widget.js'].map((f) => readFileSync(new URL(`../module/${f}`, import.meta.url), 'utf8')).join('\n');
   const used = [...src.matchAll(/\btr\('([^'`$]+)'/g)].map((m) => m[1]);
   const missing = [...new Set(used)].filter((k) => !(k in de));
   assert.deepEqual(missing, []);
